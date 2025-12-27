@@ -227,8 +227,11 @@
                                 <input type="text" id="player-name" class="form-control" placeholder="输入名字记录成绩"
                                     value="匿名">
                             </div>
-                            <button class="btn btn-primary btn-large" onclick="startPractice()">
+                            <button class="btn btn-primary btn-large" onclick="startPractice(false)">
                                 <i class="fas fa-play"></i> 开始刷题
+                            </button>
+                            <button class="btn btn-success btn-large" onclick="startPractice(true)">
+                                <i class="fas fa-file-alt"></i> 模拟考试
                             </button>
                         </div>
 
@@ -238,16 +241,29 @@
                                 <div class="progress-info">
                                     <span>题目进度: <strong id="current-index">1</strong> / <strong
                                             id="total-count">10</strong></span>
+                                    <span class="practice-mode-badge" id="practice-mode-badge"></span>
                                 </div>
                                 <div class="timer-display" id="timer-display" style="display: none;">
                                     <i class="fas fa-clock"></i>
                                     <span id="timer-text">35:00</span>
                                 </div>
-                                <div class="score-info">
+                                <div class="score-info" id="score-info">
                                     <span class="correct-count"><i class="fas fa-check"></i> <span
                                             id="correct-num">0</span></span>
                                     <span class="wrong-count"><i class="fas fa-times"></i> <span
                                             id="wrong-num">0</span></span>
+                                </div>
+                            </div>
+
+                            <!-- 题目导航面板（模拟考试用） -->
+                            <div class="question-nav-panel" id="question-nav-panel" style="display: none;">
+                                <div class="nav-panel-header">
+                                    <span>答题卡</span>
+                                    <span class="nav-stats"><span id="answered-count">0</span>/<span
+                                            id="nav-total">0</span></span>
+                                </div>
+                                <div class="question-nav-grid" id="question-nav-grid">
+                                    <!-- 动态生成题目导航按钮 -->
                                 </div>
                             </div>
 
@@ -300,8 +316,20 @@
                                     <span class="result-value" id="result-time">00:00</span>
                                 </div>
                             </div>
+
+                            <!-- 答题详情查看 -->
+                            <div class="result-detail-section">
+                                <h3>答题详情</h3>
+                                <div class="result-nav-grid" id="result-nav-grid">
+                                    <!-- 动态生成题目导航 -->
+                                </div>
+                                <div class="result-question-detail" id="result-question-detail">
+                                    <!-- 动态生成当前题目详情 -->
+                                </div>
+                            </div>
+
                             <div class="result-actions">
-                                <button class="btn btn-primary" onclick="startPractice()">
+                                <button class="btn btn-primary" onclick="restartWithSameSettings()">
                                     <i class="fas fa-redo"></i> 再来一次
                                 </button>
                                 <button class="btn btn-secondary" onclick="showPracticeSettings()">

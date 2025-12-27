@@ -18,6 +18,9 @@ let healthCheckInterval = null;
 let practiceTimer = null;
 let remainingTime = 0;
 let practiceStartTime = null;
+let isExamMode = false;  // 模拟考试模式
+let questionResults = []; // 存储每道题的作答结果
+let lastPracticeSettings = null; // 保存上次练习设置
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', function() {
@@ -658,7 +661,7 @@ function showPracticeSettings() {
     }
 }
 
-async function startPractice() {
+async function startPractice(examMode = false) {
     const bank = document.getElementById('practice-bank').value;
     const chapter = document.getElementById('practice-chapter')?.value || '';
     const singleCount = parseInt(document.getElementById('practice-single-count').value) || 0;
@@ -670,6 +673,9 @@ async function startPractice() {
         showToast('请至少设置一种题型的数量', 'warning');
         return;
     }
+    
+    // 保存练习设置
+    lastPracticeSettings = { bank, chapter, singleCount, multiCount, enableTimer, timeMinutes, examMode };
     
     let url = `${API_BASE}/api/practice/random?single_count=${singleCount}&multi_count=${multiCount}`;
     if (bank) url += `&bank=${encodeURIComponent(bank)}`;
@@ -686,10 +692,34 @@ async function startPractice() {
             wrongCount = 0;
             selectedAnswers = [];
             practiceStartTime = new Date();
+            isExamMode = examMode;
+            
+            // 初始化每道题的作答结果
+            questionResults = practiceQuestions.map(() => ({
+                answered: false,
+                userAnswer: [],
+                correctAnswer: [],
+                isCorrect: null
+            }));
             
             document.getElementById('practice-settings').style.display = 'none';
             document.getElementById('practice-area').style.display = 'block';
             document.getElementById('practice-result').style.display = 'none';
+            
+            // 设置模式标识
+            const modeBadge = document.getElementById('practice-mode-badge');
+            if (isExamMode) {
+                modeBadge.textContent = '模拟考试';
+                modeBadge.className = 'practice-mode-badge exam';
+                document.getElementById('score-info').style.display = 'none';
+                document.getElementById('question-nav-panel').style.display = 'block';
+                renderQuestionNav();
+            } else {
+                modeBadge.textContent = '刷题模式';
+                modeBadge.className = 'practice-mode-badge practice';
+                document.getElementById('score-info').style.display = 'flex';
+                document.getElementById('question-nav-panel').style.display = 'none';
+            }
             
             // 设置计时器
             if (enableTimer) {
@@ -707,6 +737,56 @@ async function startPractice() {
         }
     } catch (error) {
         showToast('加载题目失败: ' + error.message, 'error');
+    }
+}
+
+// 用相同设置再来一次
+function restartWithSameSettings() {
+    if (lastPracticeSettings) {
+        document.getElementById('practice-bank').value = lastPracticeSettings.bank;
+        if (document.getElementById('practice-chapter')) {
+            document.getElementById('practice-chapter').value = lastPracticeSettings.chapter;
+        }
+        document.getElementById('practice-single-count').value = lastPracticeSettings.singleCount;
+        document.getElementById('practice-multi-count').value = lastPracticeSettings.multiCount;
+        document.getElementById('enable-timer').checked = lastPracticeSettings.enableTimer;
+        document.getElementById('practice-time').value = lastPracticeSettings.timeMinutes;
+        startPractice(lastPracticeSettings.examMode);
+    } else {
+        showPracticeSettings();
+    }
+}
+
+// 渲染题目导航
+function renderQuestionNav() {
+    const grid = document.getElementById('question-nav-grid');
+    const circledNumbers = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩',
+        '⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳',
+        '㉑','㉒','㉓','㉔','㉕','㉖','㉗','㉘','㉙','㉚',
+        '㉛','㉜','㉝','㉞','㉟','㊱','㊲','㊳','㊴','㊵',
+        '㊶','㊷','㊸','㊹','㊺','㊻','㊼','㊽','㊾','㊿'];
+    
+    grid.innerHTML = practiceQuestions.map((_, i) => {
+        const num = i < circledNumbers.length ? circledNumbers[i] : (i + 1);
+        const answered = questionResults[i]?.answered ? 'answered' : '';
+        const current = i === currentQuestionIndex ? 'current' : '';
+        return `<button class="nav-btn ${answered} ${current}" onclick="goToQuestion(${i})">${num}</button>`;
+    }).join('');
+    
+    // 更新已答题数
+    const answeredCount = questionResults.filter(r => r.answered).length;
+    document.getElementById('answered-count').textContent = answeredCount;
+    document.getElementById('nav-total').textContent = practiceQuestions.length;
+}
+
+// 跳转到指定题目
+function goToQuestion(index) {
+    if (index >= 0 && index < practiceQuestions.length) {
+        currentQuestionIndex = index;
+        renderQuestion();
+        if (isExamMode) {
+            renderQuestionNav();
+        }
     }
 }
 
@@ -739,6 +819,7 @@ function updateTimerDisplay() {
 
 function renderQuestion() {
     const question = practiceQuestions[currentQuestionIndex];
+    const result = questionResults[currentQuestionIndex];
     
     // 更新进度
     document.getElementById('current-index').textContent = currentQuestionIndex + 1;
@@ -754,19 +835,90 @@ function renderQuestion() {
     
     // 渲染选项
     const optionsList = document.getElementById('options-list');
-    optionsList.innerHTML = Object.entries(question.options).map(([key, value]) => `
-        <button class="option-btn" onclick="selectOption('${key}', ${question.type === 'multi'})" data-key="${key}">
-            <span class="option-key">${key}</span>
-            <span class="option-text">${value}</span>
-        </button>
-    `).join('');
     
-    // 重置状态
-    selectedAnswers = [];
-    document.getElementById('answer-result').style.display = 'none';
-    document.getElementById('submit-btn').style.display = 'inline-flex';
-    document.getElementById('next-btn').style.display = 'none';
+    // 检查这道题是否已经作答过
+    if (result.answered) {
+        // 已作答：显示结果状态（刷题模式和模拟考试最终提交后都适用）
+        if (isExamMode) {
+            // 模拟考试模式：显示已选答案但不显示对错
+            optionsList.innerHTML = Object.entries(question.options).map(([key, value]) => {
+                const isSelected = result.userAnswer.includes(key) ? 'selected' : '';
+                return `<button class="option-btn ${isSelected} disabled" data-key="${key}">
+                    <span class="option-key">${key}</span>
+                    <span class="option-text">${value}</span>
+                </button>`;
+            }).join('');
+            document.getElementById('answer-result').style.display = 'none';
+        } else {
+            // 刷题模式：显示完整结果
+            optionsList.innerHTML = Object.entries(question.options).map(([key, value]) => {
+                const isCorrect = result.correctAnswer.includes(key) ? 'correct' : '';
+                const isWrong = result.userAnswer.includes(key) && !result.correctAnswer.includes(key) ? 'wrong' : '';
+                const isSelected = result.userAnswer.includes(key) ? 'selected' : '';
+                return `<button class="option-btn ${isCorrect} ${isWrong} ${isSelected} disabled" data-key="${key}">
+                    <span class="option-key">${key}</span>
+                    <span class="option-text">${value}</span>
+                </button>`;
+            }).join('');
+            
+            // 显示结果
+            const resultDiv = document.getElementById('answer-result');
+            resultDiv.style.display = 'flex';
+            if (result.isCorrect) {
+                resultDiv.className = 'answer-result correct';
+                resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> 回答正确！';
+            } else {
+                resultDiv.className = 'answer-result wrong';
+                resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> 回答错误，正确答案是: ${result.correctAnswer.join('')}`;
+            }
+        }
+        
+        // 已作答的题目隐藏提交按钮
+        document.getElementById('submit-btn').style.display = 'none';
+        document.getElementById('next-btn').style.display = 'inline-flex';
+        
+        // 更新下一题按钮文字
+        if (currentQuestionIndex === practiceQuestions.length - 1) {
+            if (isExamMode) {
+                document.getElementById('next-btn').innerHTML = '提交试卷 <i class="fas fa-paper-plane"></i>';
+            } else {
+                document.getElementById('next-btn').innerHTML = '查看结果 <i class="fas fa-flag-checkered"></i>';
+            }
+        } else {
+            document.getElementById('next-btn').innerHTML = '下一题 <i class="fas fa-arrow-right"></i>';
+        }
+    } else {
+        // 未作答：正常渲染
+        optionsList.innerHTML = Object.entries(question.options).map(([key, value]) => `
+            <button class="option-btn" onclick="selectOption('${key}', ${question.type === 'multi'})" data-key="${key}">
+                <span class="option-key">${key}</span>
+                <span class="option-text">${value}</span>
+            </button>
+        `).join('');
+        
+        // 重置状态
+        selectedAnswers = [];
+        document.getElementById('answer-result').style.display = 'none';
+        document.getElementById('submit-btn').style.display = 'inline-flex';
+        
+        if (isExamMode) {
+            // 模拟考试模式：显示下一题按钮用于跳过
+            document.getElementById('next-btn').style.display = 'inline-flex';
+            document.getElementById('next-btn').innerHTML = '跳过 <i class="fas fa-forward"></i>';
+            if (currentQuestionIndex === practiceQuestions.length - 1) {
+                document.getElementById('next-btn').innerHTML = '提交试卷 <i class="fas fa-paper-plane"></i>';
+            }
+        } else {
+            document.getElementById('next-btn').style.display = 'none';
+        }
+    }
+    
     document.getElementById('prev-btn').disabled = currentQuestionIndex === 0;
+    
+    // 更新导航面板
+    if (isExamMode) {
+        renderQuestionNav();
+    }
 }
 
 function selectOption(key, isMulti) {
@@ -812,43 +964,71 @@ async function submitAnswer() {
         const data = await response.json();
         
         if (data.success) {
-            // 禁用选项
-            document.querySelectorAll('.option-btn').forEach(btn => {
-                btn.classList.add('disabled');
-                const key = btn.dataset.key;
+            // 保存作答结果
+            questionResults[currentQuestionIndex] = {
+                answered: true,
+                userAnswer: [...selectedAnswers],
+                correctAnswer: data.correct_answer,
+                isCorrect: data.correct
+            };
+            
+            if (isExamMode) {
+                // 模拟考试模式：不显示答案，只标记已答
+                document.querySelectorAll('.option-btn').forEach(btn => {
+                    btn.classList.add('disabled');
+                });
                 
-                if (data.correct_answer.includes(key)) {
-                    btn.classList.add('correct');
-                } else if (selectedAnswers.includes(key)) {
-                    btn.classList.add('wrong');
+                // 更新导航
+                renderQuestionNav();
+                
+                // 切换按钮
+                document.getElementById('submit-btn').style.display = 'none';
+                document.getElementById('next-btn').style.display = 'inline-flex';
+                
+                if (currentQuestionIndex === practiceQuestions.length - 1) {
+                    document.getElementById('next-btn').innerHTML = '提交试卷 <i class="fas fa-paper-plane"></i>';
+                } else {
+                    document.getElementById('next-btn').innerHTML = '下一题 <i class="fas fa-arrow-right"></i>';
                 }
-            });
-            
-            // 显示结果
-            const resultDiv = document.getElementById('answer-result');
-            resultDiv.style.display = 'flex';
-            
-            if (data.correct) {
-                correctCount++;
-                resultDiv.className = 'answer-result correct';
-                resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> 回答正确！';
             } else {
-                wrongCount++;
-                resultDiv.className = 'answer-result wrong';
-                resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> 回答错误，正确答案是: ${data.correct_answer.join('')}`;
-            }
-            
-            // 更新计数
-            document.getElementById('correct-num').textContent = correctCount;
-            document.getElementById('wrong-num').textContent = wrongCount;
-            
-            // 切换按钮
-            document.getElementById('submit-btn').style.display = 'none';
-            document.getElementById('next-btn').style.display = 'inline-flex';
-            
-            // 如果是最后一题
-            if (currentQuestionIndex === practiceQuestions.length - 1) {
-                document.getElementById('next-btn').innerHTML = '查看结果 <i class="fas fa-flag-checkered"></i>';
+                // 刷题模式：显示答案
+                document.querySelectorAll('.option-btn').forEach(btn => {
+                    btn.classList.add('disabled');
+                    const key = btn.dataset.key;
+                    
+                    if (data.correct_answer.includes(key)) {
+                        btn.classList.add('correct');
+                    } else if (selectedAnswers.includes(key)) {
+                        btn.classList.add('wrong');
+                    }
+                });
+                
+                // 显示结果
+                const resultDiv = document.getElementById('answer-result');
+                resultDiv.style.display = 'flex';
+                
+                if (data.correct) {
+                    correctCount++;
+                    resultDiv.className = 'answer-result correct';
+                    resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> 回答正确！';
+                } else {
+                    wrongCount++;
+                    resultDiv.className = 'answer-result wrong';
+                    resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> 回答错误，正确答案是: ${data.correct_answer.join('')}`;
+                }
+                
+                // 更新计数
+                document.getElementById('correct-num').textContent = correctCount;
+                document.getElementById('wrong-num').textContent = wrongCount;
+                
+                // 切换按钮
+                document.getElementById('submit-btn').style.display = 'none';
+                document.getElementById('next-btn').style.display = 'inline-flex';
+                
+                // 如果是最后一题
+                if (currentQuestionIndex === practiceQuestions.length - 1) {
+                    document.getElementById('next-btn').innerHTML = '查看结果 <i class="fas fa-flag-checkered"></i>';
+                }
             }
         }
     } catch (error) {
@@ -869,8 +1049,29 @@ function nextQuestion() {
         renderQuestion();
     } else {
         // 显示结果
+        if (isExamMode) {
+            // 模拟考试模式：先计算所有答案
+            calculateExamResults();
+        }
         showPracticeResult();
     }
+}
+
+// 计算模拟考试结果
+function calculateExamResults() {
+    correctCount = 0;
+    wrongCount = 0;
+    questionResults.forEach(result => {
+        if (result.answered) {
+            if (result.isCorrect) {
+                correctCount++;
+            } else {
+                wrongCount++;
+            }
+        } else {
+            wrongCount++; // 未答题算错
+        }
+    });
 }
 
 function showPracticeResult() {
@@ -899,6 +1100,11 @@ function showPracticeResult() {
     document.getElementById('result-rate').textContent = rate + '%';
     document.getElementById('result-time').textContent = timeDisplay;
     
+    // 渲染答题详情导航
+    renderResultNav();
+    // 默认显示第一题
+    showResultQuestion(0);
+    
     // 保存成绩到排名
     const playerName = document.getElementById('player-name')?.value?.trim() || '匿名';
     saveRanking({
@@ -910,6 +1116,77 @@ function showPracticeResult() {
         time_spent: timeSpent,
         time_display: timeDisplay
     });
+}
+
+// 渲染结果页题目导航
+function renderResultNav() {
+    const grid = document.getElementById('result-nav-grid');
+    const circledNumbers = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩',
+        '⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳',
+        '㉑','㉒','㉓','㉔','㉕','㉖','㉗','㉘','㉙','㉚',
+        '㉛','㉜','㉝','㉞','㉟','㊱','㊲','㊳','㊴','㊵',
+        '㊶','㊷','㊸','㊹','㊺','㊻','㊼','㊽','㊾','㊿'];
+    
+    grid.innerHTML = practiceQuestions.map((_, i) => {
+        const num = i < circledNumbers.length ? circledNumbers[i] : (i + 1);
+        const result = questionResults[i];
+        const status = result.answered ? (result.isCorrect ? 'correct' : 'wrong') : 'wrong';
+        return `<button class="result-nav-btn ${status}" onclick="showResultQuestion(${i})" data-index="${i}">${num}</button>`;
+    }).join('');
+}
+
+// 显示结果页中某道题的详情
+function showResultQuestion(index) {
+    const question = practiceQuestions[index];
+    const result = questionResults[index];
+    const detailDiv = document.getElementById('result-question-detail');
+    
+    // 更新导航按钮高亮
+    document.querySelectorAll('.result-nav-btn').forEach((btn, i) => {
+        btn.classList.toggle('current', i === index);
+    });
+    
+    const typeText = question.type === 'multi' ? '多选题' : '单选题';
+    const statusClass = result.answered ? (result.isCorrect ? 'correct' : 'wrong') : 'wrong';
+    const statusText = result.answered ? (result.isCorrect ? '✓ 正确' : '✗ 错误') : '✗ 未作答';
+    
+    let optionsHtml = Object.entries(question.options).map(([key, value]) => {
+        const classes = [];
+        const isUserSelected = result.userAnswer.includes(key);
+        const isCorrectAnswer = result.correctAnswer.includes(key);
+        
+        if (isCorrectAnswer) {
+            classes.push('correct-answer');
+        }
+        if (isUserSelected && !isCorrectAnswer) {
+            classes.push('wrong-answer');
+        }
+        if (isUserSelected) {
+            classes.push('user-selected');
+        }
+        
+        return `<div class="result-option ${classes.join(' ')}">
+            <span class="result-option-key">${key}</span>
+            <span class="result-option-text">${value}</span>
+        </div>`;
+    }).join('');
+    
+    const userAnswerText = result.userAnswer.length > 0 ? result.userAnswer.join('') : '未作答';
+    const correctAnswerText = result.correctAnswer.join('');
+    
+    detailDiv.innerHTML = `
+        <div class="result-question-header">
+            <span class="question-type ${question.type === 'multi' ? 'multi' : ''}">${typeText}</span>
+            <span class="result-question-status ${statusClass}">${statusText}</span>
+            <span class="question-chapter">${question.chapter}</span>
+        </div>
+        <div class="result-question-content">${index + 1}. ${question.question}</div>
+        <div class="result-options-list">${optionsHtml}</div>
+        <div class="result-answer-info">
+            <span class="your-answer"><i class="fas fa-user"></i> 你的答案: ${userAnswerText}</span>
+            <span class="correct-answer"><i class="fas fa-check"></i> 正确答案: ${correctAnswerText}</span>
+        </div>
+    `;
 }
 
 // ==================== 设置 ====================
