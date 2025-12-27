@@ -22,47 +22,51 @@ class QuestionParser:
     """题目解析器类"""
     
     def __init__(self):
-        # 单选题标识
+        # 单选题标识 - 更全面的模式
         self.single_choice_patterns = [
-            r'^单项选择题$',
-            r'^单选题$',
-            r'^一[、\.．]\s*单项选择题',
-            r'^一[、\.．]\s*单选题',
+            r'^单项选择题[:：]?\s*$',
+            r'^单选题[:：]?\s*$',
+            r'^[一二三四五六七八九十][、\.．\s]\s*单项选择题[:：]?\s*$',
+            r'^[一二三四五六七八九十][、\.．\s]\s*单选题[:：]?\s*$',
+            r'^一[、\.\s\t]+单项选择题',
+            r'^一[、\.\s\t]+单选题',
         ]
-        # 多选题标识
+        # 多选题标识 - 更全面的模式
         self.multi_choice_patterns = [
-            r'^多项选择题$',
-            r'^多选题$',
-            r'^二[、\.．]\s*多项选择题',
-            r'^二[、\.．]\s*多选题',
+            r'^多项选择题[:：]?\s*$',
+            r'^多选题[:：]?\s*$',
+            r'^[一二三四五六七八九十][、\.．\s]\s*多项选择题[:：]?\s*$',
+            r'^[一二三四五六七八九十][、\.．\s]\s*多选题[:：]?\s*$',
+            r'^二[、\.\s\t]+多项选择题',
+            r'^二[、\.\s\t]+多选题',
         ]
         # 章节标识
         self.chapter_patterns = [
             r'^第[一二三四五六七八九十百千\d]+章',
-            r'^导论$',
+            r'^导论\s*$',
         ]
         # 题号模式
         self.question_number_pattern = r'^(\d+)[\.、．\s]\s*'
         
-        # 答案提取模式 - 支持多种格式，包括字母间有空格的情况
+        # 答案提取模式 - 支持多种格式，包括字母间有空格的情况，支持 A-F 选项
         self.answer_patterns = [
-            r'[（(]\s*([A-Ea-e](?:\s*[A-Ea-e])*)\s*[）)]',  # 匹配括号内的字母（可能有空格分隔）
+            r'[（(]\s*([A-Fa-fＡ-Ｆａ-ｆ](?:\s*[A-Fa-fＡ-Ｆａ-ｆ])*)\s*[）)]',  # 匹配括号内的字母（可能有空格分隔），支持全角
         ]
         
-        # 选项模式 - 支持半角和全角字母
-        self.option_start_pattern = r'^([A-Ea-eＡ-Ｅａ-ｅ])[\.、．\s]'
+        # 选项模式 - 支持半角和全角字母，A-F
+        self.option_start_pattern = r'^([A-Fa-fＡ-Ｆａ-ｆ])[\.、．\s]'
         
         # 用于记录章节顺序
         self.chapter_order = []
     
     def normalize_option_letter(self, letter):
         """将全角字母转换为半角大写"""
-        # 全角大写 A-E
-        fullwidth_upper = 'ＡＢＣＤＥ'
-        # 全角小写 a-e
-        fullwidth_lower = 'ａｂｃｄｅ'
+        # 全角大写 A-F
+        fullwidth_upper = 'ＡＢＣＤＥＦ'
+        # 全角小写 a-f
+        fullwidth_lower = 'ａｂｃｄｅｆ'
         # 半角
-        halfwidth = 'ABCDE'
+        halfwidth = 'ABCDEF'
         
         if letter in fullwidth_upper:
             return halfwidth[fullwidth_upper.index(letter)]
@@ -140,8 +144,14 @@ class QuestionParser:
             matches = re.findall(pattern, text, re.IGNORECASE)
             if matches:
                 # 取最后一个匹配的答案
-                answer = matches[-1].upper().replace(' ', '')
-                return list(answer)
+                answer_str = matches[-1].replace(' ', '')
+                # 转换每个字母为标准格式
+                answer = []
+                for char in answer_str:
+                    normalized = self.normalize_option_letter(char)
+                    if normalized and normalized not in answer:
+                        answer.append(normalized)
+                return answer
         return []
     
     def has_answer_marker(self, text):
@@ -159,8 +169,8 @@ class QuestionParser:
             # 确保这不是一个题目行（题目行会包含答案标记）
             if not self.has_answer_marker(text):
                 return True
-        # 包含多个选项（如 A 选项A    B 选项B），支持全角字母
-        if re.search(r'[A-Ea-eＡ-Ｅａ-ｅ][\.、．\s]\s*\S+\s{2,}[A-Ea-eＡ-Ｅａ-ｅ][\.、．\s]', text):
+        # 包含多个选项（如 A 选项A    B 选项B），支持全角字母 A-F
+        if re.search(r'[A-Fa-fＡ-Ｆａ-ｆ][\.、．\s]\s*\S+\s{2,}[A-Fa-fＡ-Ｆａ-ｆ][\.、．\s]', text):
             if not self.has_answer_marker(text):
                 return True
         return False
@@ -168,9 +178,9 @@ class QuestionParser:
     def clean_question_text(self, text):
         """清理题目文本，移除答案标记和题号"""
         cleaned = text
-        # 移除答案标记，替换为空括号
-        for pattern in self.answer_patterns:
-            cleaned = re.sub(pattern, '（  ）', cleaned, count=1)
+        # 移除答案标记，替换为空括号 - 支持全角字母 A-F
+        answer_clean_pattern = r'[（(]\s*[A-Fa-fＡ-Ｆａ-ｆ](?:\s*[A-Fa-fＡ-Ｆａ-ｆ])*\s*[）)]'
+        cleaned = re.sub(answer_clean_pattern, '（  ）', cleaned, count=1)
         # 移除题号
         cleaned = re.sub(self.question_number_pattern, '', cleaned)
         return cleaned.strip()
@@ -188,8 +198,8 @@ class QuestionParser:
             part = part.strip()
             if not part:
                 continue
-            # 匹配 A. 选项 或 A 选项 或 A、选项，支持全角字母
-            match = re.match(r'^([A-Ea-eＡ-Ｅａ-ｅ])[\.、．\s]?\s*(.+)$', part)
+            # 匹配 A. 选项 或 A 选项 或 A、选项，支持全角字母 A-F
+            match = re.match(r'^([A-Fa-fＡ-Ｆａ-ｆ])[\.、．\s]?\s*(.+)$', part)
             if match:
                 key = self.normalize_option_letter(match.group(1))
                 value = match.group(2).strip()
@@ -198,7 +208,7 @@ class QuestionParser:
         
         # 如果上面没找到多个选项，尝试单选项解析
         if len(options) <= 1:
-            match = re.match(r'^([A-Ea-eＡ-Ｅａ-ｅ])[\.、．\s]?\s*(.+)$', text)
+            match = re.match(r'^([A-Fa-fＡ-Ｆａ-ｆ])[\.、．\s]?\s*(.+)$', text)
             if match:
                 key = self.normalize_option_letter(match.group(1))
                 value = match.group(2).strip()
