@@ -166,7 +166,25 @@
 
             <!-- 刷题页 -->
             <div id="practice-page" class="page">
-                <h1>刷题练习</h1>
+                <div class="practice-page-header">
+                    <h1>刷题练习</h1>
+                    <div class="practice-header-info" id="practice-header-info" style="display: none;">
+                        <div class="progress-info">
+                            <span>题目进度: <strong id="current-index">1</strong> / <strong
+                                    id="total-count">10</strong></span>
+                            <span class="practice-mode-badge" id="practice-mode-badge"></span>
+                        </div>
+                        <div class="timer-display" id="timer-display" style="display: none;">
+                            <i class="fas fa-clock"></i>
+                            <span id="timer-text">35:00</span>
+                        </div>
+                        <div class="score-info" id="score-info">
+                            <span class="correct-count"><i class="fas fa-check"></i> <span
+                                    id="correct-num">0</span></span>
+                            <span class="wrong-count"><i class="fas fa-times"></i> <span id="wrong-num">0</span></span>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="practice-layout">
                     <!-- 左侧：刷题区域 -->
@@ -237,36 +255,6 @@
 
                         <!-- 刷题界面 -->
                         <div class="practice-area" id="practice-area" style="display: none;">
-                            <div class="practice-header">
-                                <div class="progress-info">
-                                    <span>题目进度: <strong id="current-index">1</strong> / <strong
-                                            id="total-count">10</strong></span>
-                                    <span class="practice-mode-badge" id="practice-mode-badge"></span>
-                                </div>
-                                <div class="timer-display" id="timer-display" style="display: none;">
-                                    <i class="fas fa-clock"></i>
-                                    <span id="timer-text">35:00</span>
-                                </div>
-                                <div class="score-info" id="score-info">
-                                    <span class="correct-count"><i class="fas fa-check"></i> <span
-                                            id="correct-num">0</span></span>
-                                    <span class="wrong-count"><i class="fas fa-times"></i> <span
-                                            id="wrong-num">0</span></span>
-                                </div>
-                            </div>
-
-                            <!-- 题目导航面板（模拟考试用） -->
-                            <div class="question-nav-panel" id="question-nav-panel" style="display: none;">
-                                <div class="nav-panel-header">
-                                    <span>答题卡</span>
-                                    <span class="nav-stats"><span id="answered-count">0</span>/<span
-                                            id="nav-total">0</span></span>
-                                </div>
-                                <div class="question-nav-grid" id="question-nav-grid">
-                                    <!-- 动态生成题目导航按钮 -->
-                                </div>
-                            </div>
-
                             <div class="question-card" id="question-card">
                                 <div class="question-header">
                                     <span class="question-type" id="question-type">单选题</span>
@@ -349,6 +337,18 @@
                         </div>
                         <div class="ranking-list" id="ranking-list">
                             <div class="empty-ranking">暂无记录</div>
+                        </div>
+
+                        <!-- 答题卡（模拟考试用） -->
+                        <div class="question-nav-panel" id="question-nav-panel" style="display: none;">
+                            <div class="nav-panel-header">
+                                <span>答题卡</span>
+                                <span class="nav-stats"><span id="answered-count">0</span>/<span
+                                        id="nav-total">0</span></span>
+                            </div>
+                            <div class="question-nav-grid" id="question-nav-grid">
+                                <!-- 动态生成题目导航按钮 -->
+                            </div>
                         </div>
                     </div>
                 </div><!-- end practice-layout -->

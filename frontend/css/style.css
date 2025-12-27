@@ -1712,3 +1712,65 @@ select.form-control {
     margin-top: 15px;
     padding: 12px;
 }
+
+/* 刷题页面头部布局 */
+.practice-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.practice-page-header h1 {
+    margin: 0;
+}
+
+.practice-header-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: var(--card-bg);
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.practice-header-info .progress-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.practice-header-info .timer-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.practice-header-info .timer-display.warning {
+    color: var(--danger-color);
+}
+
+.practice-header-info .score-info {
+    display: flex;
+    gap: 15px;
+}
+
+.practice-header-info .correct-count {
+    color: var(--success-color);
+}
+
+.practice-header-info .wrong-count {
+    color: var(--danger-color);
+}
+
+/* 右侧面板中的答题卡 */
+.ranking-panel .question-nav-panel {
+    margin-top: 20px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 15px;
+}

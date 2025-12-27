@@ -653,6 +653,8 @@ function showPracticeSettings() {
     document.getElementById('practice-settings').style.display = 'grid';
     document.getElementById('practice-area').style.display = 'none';
     document.getElementById('practice-result').style.display = 'none';
+    document.getElementById('practice-header-info').style.display = 'none';
+    document.getElementById('question-nav-panel').style.display = 'none';
     
     // 停止计时器
     if (practiceTimer) {
@@ -705,6 +707,8 @@ async function startPractice(examMode = false) {
             document.getElementById('practice-settings').style.display = 'none';
             document.getElementById('practice-area').style.display = 'block';
             document.getElementById('practice-result').style.display = 'none';
+            document.getElementById('practice-header-info').style.display = 'flex';
+            document.getElementById('question-nav-panel').style.display = 'block';
             
             // 设置模式标识
             const modeBadge = document.getElementById('practice-mode-badge');
@@ -712,14 +716,14 @@ async function startPractice(examMode = false) {
                 modeBadge.textContent = '模拟考试';
                 modeBadge.className = 'practice-mode-badge exam';
                 document.getElementById('score-info').style.display = 'none';
-                document.getElementById('question-nav-panel').style.display = 'block';
-                renderQuestionNav();
             } else {
                 modeBadge.textContent = '刷题模式';
                 modeBadge.className = 'practice-mode-badge practice';
                 document.getElementById('score-info').style.display = 'flex';
-                document.getElementById('question-nav-panel').style.display = 'none';
             }
+            
+            // 渲染答题卡
+            renderQuestionNav();
             
             // 设置计时器
             if (enableTimer) {
@@ -760,14 +764,9 @@ function restartWithSameSettings() {
 // 渲染题目导航
 function renderQuestionNav() {
     const grid = document.getElementById('question-nav-grid');
-    const circledNumbers = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩',
-        '⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳',
-        '㉑','㉒','㉓','㉔','㉕','㉖','㉗','㉘','㉙','㉚',
-        '㉛','㉜','㉝','㉞','㉟','㊱','㊲','㊳','㊴','㊵',
-        '㊶','㊷','㊸','㊹','㊺','㊻','㊼','㊽','㊾','㊿'];
     
     grid.innerHTML = practiceQuestions.map((_, i) => {
-        const num = i < circledNumbers.length ? circledNumbers[i] : (i + 1);
+        const num = i + 1;
         const answered = questionResults[i]?.answered ? 'answered' : '';
         const current = i === currentQuestionIndex ? 'current' : '';
         return `<button class="nav-btn ${answered} ${current}" onclick="goToQuestion(${i})">${num}</button>`;
@@ -784,9 +783,7 @@ function goToQuestion(index) {
     if (index >= 0 && index < practiceQuestions.length) {
         currentQuestionIndex = index;
         renderQuestion();
-        if (isExamMode) {
-            renderQuestionNav();
-        }
+        renderQuestionNav();
     }
 }
 
@@ -916,9 +913,7 @@ function renderQuestion() {
     document.getElementById('prev-btn').disabled = currentQuestionIndex === 0;
     
     // 更新导航面板
-    if (isExamMode) {
-        renderQuestionNav();
-    }
+    renderQuestionNav();
 }
 
 function selectOption(key, isMulti) {
@@ -1090,6 +1085,8 @@ function showPracticeResult() {
     
     document.getElementById('practice-area').style.display = 'none';
     document.getElementById('practice-result').style.display = 'block';
+    document.getElementById('practice-header-info').style.display = 'none';
+    document.getElementById('question-nav-panel').style.display = 'none';
     
     const total = practiceQuestions.length;
     const rate = total > 0 ? Math.round((correctCount / total) * 100) : 0;
@@ -1121,14 +1118,9 @@ function showPracticeResult() {
 // 渲染结果页题目导航
 function renderResultNav() {
     const grid = document.getElementById('result-nav-grid');
-    const circledNumbers = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩',
-        '⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳',
-        '㉑','㉒','㉓','㉔','㉕','㉖','㉗','㉘','㉙','㉚',
-        '㉛','㉜','㉝','㉞','㉟','㊱','㊲','㊳','㊴','㊵',
-        '㊶','㊷','㊸','㊹','㊺','㊻','㊼','㊽','㊾','㊿'];
     
     grid.innerHTML = practiceQuestions.map((_, i) => {
-        const num = i < circledNumbers.length ? circledNumbers[i] : (i + 1);
+        const num = i + 1;
         const result = questionResults[i];
         const status = result.answered ? (result.isCorrect ? 'correct' : 'wrong') : 'wrong';
         return `<button class="result-nav-btn ${status}" onclick="showResultQuestion(${i})" data-index="${i}">${num}</button>`;
