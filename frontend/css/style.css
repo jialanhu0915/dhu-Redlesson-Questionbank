@@ -1,19 +1,25 @@
 /* ==================== 基础样式 ==================== */
 :root {
-    --primary-color: #4a90d9;
-    --primary-dark: #357abd;
-    --success-color: #52c41a;
-    --danger-color: #ff4d4f;
-    --warning-color: #faad14;
-    --text-color: #333;
-    --text-secondary: #666;
-    --border-color: #e8e8e8;
-    --bg-color: #f5f7fa;
+    --primary-color: #5b8def;
+    --primary-dark: #4a7bd9;
+    --primary-light: #e8f0fe;
+    --success-color: #34c759;
+    --success-light: #e8f8ed;
+    --danger-color: #ff3b30;
+    --danger-light: #ffe8e7;
+    --warning-color: #ff9500;
+    --warning-light: #fff8e6;
+    --text-color: #1d1d1f;
+    --text-secondary: #86868b;
+    --border-color: #d2d2d7;
+    --bg-color: #f5f5f7;
     --card-bg: #ffffff;
-    --sidebar-bg: #2c3e50;
-    --sidebar-active: #34495e;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    --radius: 8px;
+    --sidebar-bg: #1d1d1f;
+    --sidebar-active: #2d2d2f;
+    --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    --shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.12);
+    --radius: 12px;
+    --radius-small: 8px;
 }
 
 * {
@@ -275,6 +281,8 @@ body {
     padding: 3px 10px;
     border-radius: 20px;
     font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 /* ==================== 按钮 ==================== */
@@ -600,6 +608,18 @@ select.form-control {
     background: white;
 }
 
+.filter-bar .inline-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.filter-bar .inline-toggle input {
+    margin: 0;
+}
+
 .question-list {
     display: grid;
     gap: 15px;
@@ -659,6 +679,16 @@ select.form-control {
     font-size: 14px;
 }
 
+.option-item.correct-answer {
+    background: var(--success-light);
+    border-left: 3px solid var(--success-color);
+}
+
+.option-item.wrong-answer {
+    background: var(--danger-light);
+    border-left: 3px solid var(--danger-color);
+}
+
 .question-answer {
     font-size: 14px;
     color: var(--success-color);
@@ -679,10 +709,10 @@ select.form-control {
     border-radius: var(--radius);
     padding: 30px;
     box-shadow: var(--shadow);
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 20px;
-    max-width: 800px;
+    max-width: 1000px;
 }
 
 .settings-card {
@@ -1444,8 +1474,19 @@ select.form-control {
     color: white;
 }
 
-.practice-mode-badge.practice {
+.practice-mode-badge.practice,
+.practice-mode-badge.random {
     background: linear-gradient(135deg, #4a90d9, #63b3ed);
+    color: white;
+}
+
+.practice-mode-badge.sequence {
+    background: linear-gradient(135deg, #34c759, #28a745);
+    color: white;
+}
+
+.practice-mode-badge.wrong {
+    background: linear-gradient(135deg, #af52de, #9933cc);
     color: white;
 }
 
@@ -1773,4 +1814,216 @@ select.form-control {
     margin-top: 20px;
     border-top: 1px solid var(--border-color);
     padding-top: 15px;
+}
+
+/* ==================== 新增：题库章节分组显示 ==================== */
+.bank-chapters-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.bank-chapter-group {
+    background: var(--bg-color);
+    border-radius: var(--radius);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.bank-chapter-group .bank-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.bank-chapter-group .bank-title .bank-count {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: normal;
+}
+
+.bank-chapter-group .chapter-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+/* ==================== 新增：刷题设置布局 ==================== */
+.practice-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.settings-row-top {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.settings-row-bottom {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+}
+
+.practice-start-btn {
+    display: flex;
+    justify-content: center;
+    padding-top: 10px;
+}
+
+.practice-start-btn .btn-large {
+    min-width: 200px;
+}
+
+/* ==================== 新增：进度面板 ==================== */
+.progress-panel {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 15px;
+    margin-top: 20px;
+    box-shadow: var(--shadow);
+}
+
+.progress-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.progress-panel-header h3 {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-color);
+}
+
+.progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.progress-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--bg-color);
+    border-radius: var(--radius-small);
+    font-size: 13px;
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+.progress-item:hover {
+    background: var(--primary-light);
+}
+
+.progress-item .mode-name {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.progress-item .progress-info {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.progress-item .progress-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.progress-item .progress-actions button {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+.empty-progress {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 20px;
+    font-size: 13px;
+}
+
+/* ==================== 新增：错题本样式 ==================== */
+.wrong-count-badge {
+    background: var(--danger-color);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+/* ==================== 优化：设置卡片 ==================== */
+.settings-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.3s;
+}
+
+.settings-card:hover {
+    box-shadow: var(--shadow-hover);
+}
+
+.settings-card h3 {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ==================== 优化：统计卡片渐变 ==================== */
+.stat-card:nth-child(1) .stat-icon {
+    background: linear-gradient(135deg, #5b8def, #4a7bd9);
+}
+
+.stat-card:nth-child(2) .stat-icon {
+    background: linear-gradient(135deg, #ff9500, #ff7b00);
+}
+
+.stat-card:nth-child(3) .stat-icon {
+    background: linear-gradient(135deg, #34c759, #28a745);
+}
+
+.stat-card:nth-child(4) .stat-icon {
+    background: linear-gradient(135deg, #af52de, #9933cc);
+}
+
+/* 响应式适配 */
+@media (max-width: 1200px) {
+    .settings-row-top {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .settings-row-bottom {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+
+    .settings-row-top,
+    .settings-row-bottom {
+        grid-template-columns: 1fr;
+    }
 }

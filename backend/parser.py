@@ -48,19 +48,23 @@ class QuestionParser:
         # 题号模式
         self.question_number_pattern = r'^(\d+)[\.、．\s]\s*'
         
-        # 答案提取模式 - 支持多种格式，包括字母间有空格的情况，支持 A-F 选项
+        # 答案提取模式 - 支持多种格式，包括字母间有空格的情况，支持 A-Z 选项
         self.answer_patterns = [
-            r'[（(]\s*([A-Fa-fＡ-Ｆａ-ｆ](?:\s*[A-Fa-fＡ-Ｆａ-ｆ])*)\s*[）)]',  # 匹配括号内的字母（可能有空格分隔），支持全角
+            r'[（(]\s*([A-Za-zＡ-Ｚａ-ｚ](?:\s*[A-Za-zＡ-Ｚａ-ｚ])*)\s*[）)]',  # 括号内的字母（可能有空格分隔），支持全角
+            r'\?\s*([A-Za-zＡ-Ｚａ-ｚ]+)',  # 匹配 ?D 或 ?ABC 格式（问号后跟答案字母），忽略问号
         ]
         
         # 空答案标记模式 - 用于识别占位符
         self.empty_answer_marker = r'[（(]\s*[）)]'
+
+        # 问号答案格式 - 用于 has_answer_marker 检测
+        self.question_mark_answer_pattern = r'\?\s*[A-Za-zＡ-Ｚａ-ｚ]'
         
         # 独立答案行模式 - 如 "正确答案: A" 或 "答案: AB"
-        self.standalone_answer_pattern = r'(?:正确)?答案[:：]?\s*([A-Fa-fＡ-Ｆａ-ｆ]+)'
+        self.standalone_answer_pattern = r'(?:正确)?答案[:：]?\s*([A-Za-zＡ-Ｚａ-ｚ]+)'
         
-        # 选项模式 - 支持半角和全角字母，A-F
-        self.option_start_pattern = r'^([A-Fa-fＡ-Ｆａ-ｆ])[\.、．\s]'
+        # 选项模式 - 支持半角和全角字母，A-Z
+        self.option_start_pattern = r'^([A-Za-zＡ-Ｚａ-ｚ])[\.、．\s]'
         
         # 用于记录章节顺序
         self.chapter_order = []
@@ -166,7 +170,8 @@ class QuestionParser:
             matches = re.findall(pattern, text, re.IGNORECASE)
             if matches:
                 # 取最后一个匹配的答案
-                answer_str = matches[-1].replace(' ', '')
+                # 清理空格和遗留的问号（Word 转 TXT 可能残留 ?）
+                answer_str = re.sub(r'[\s\?？]', '', matches[-1])
                 # 转换每个字母为标准格式
                 answer = []
                 for char in answer_str:
@@ -183,6 +188,9 @@ class QuestionParser:
                 return True
         # 检查空答案标记
         if re.search(self.empty_answer_marker, text):
+            return True
+        # 检查问号答案格式 ?D
+        if re.search(self.question_mark_answer_pattern, text):
             return True
         return False
     
@@ -203,9 +211,12 @@ class QuestionParser:
     def clean_question_text(self, text):
         """清理题目文本，移除答案标记和题号"""
         cleaned = text
-        # 移除答案标记，替换为空括号 - 支持全角字母 A-F
-        answer_clean_pattern = r'[（(]\s*[A-Fa-fＡ-Ｆａ-ｆ](?:\s*[A-Fa-fＡ-Ｆａ-ｆ])*\s*[）)]'
+        # 移除答案标记，替换为空括号 - 支持全角字母 A-Z
+        answer_clean_pattern = r'[（(]\s*[A-Za-zＡ-Ｚａ-ｚ](?:\s*[A-Za-zＡ-Ｚａ-ｚ])*\s*[）)]'
         cleaned = re.sub(answer_clean_pattern, '（  ）', cleaned, count=1)
+        # 移除问号格式答案 ?D -> （  ）
+        question_mark_answer = r'\?\s*[A-Za-zＡ-Ｚａ-ｚ]+'
+        cleaned = re.sub(question_mark_answer, '（  ）', cleaned, count=1)
         # 移除题号
         cleaned = re.sub(self.question_number_pattern, '', cleaned)
         return cleaned.strip()
@@ -224,8 +235,8 @@ class QuestionParser:
         # - D15 (数字紧跟字母，无分隔符，如 "C. 12 D15")
         # - A中文 (中文紧跟字母，无分隔符)
         # 选项字母可以在行首，或者前面是空格/中文字符/数字
-        # 匹配: 字母 + (点号/顿号/空格 或 后面直接跟数字/中文)
-        option_pattern = r'(?:^|(?<=[\s\u4e00-\u9fa50-9]))([A-Fa-fＡ-Ｆａ-ｆ])(?:[\.、．\s]|(?=\d)|(?=[\u4e00-\u9fa5]))'
+        # 匹配: 字母 + (点号/顿号/空格 或 后面直接跟数字/中文)，允许 A-Z
+        option_pattern = r'(?:^|(?<=[\s\u4e00-\u9fa50-9]))([A-Za-zＡ-Ｚａ-ｚ])(?:[\.、．\s]|(?=\d)|(?=[\u4e00-\u9fa5]))'
         
         # 找到所有选项的位置
         matches = list(re.finditer(option_pattern, text))
@@ -252,8 +263,8 @@ class QuestionParser:
                 part = part.strip()
                 if not part:
                     continue
-                # 匹配 A. 选项 或 A 选项 或 A、选项，支持全角字母 A-F
-                match = re.match(r'^([A-Fa-fＡ-Ｆａ-ｆ])[\.、．\s]?\s*(.*)$', part)
+                # 匹配 A. 选项 或 A 选项 或 A、选项，支持全角字母 A-Z
+                match = re.match(r'^([A-Za-zＡ-Ｚａ-ｚ])[\.、．\s]?\s*(.*)$', part)
                 if match:
                     key = self.normalize_option_letter(match.group(1))
                     value = match.group(2).strip()
@@ -262,7 +273,7 @@ class QuestionParser:
         
         # 方法3: 如果还是没找到多个选项，尝试单选项解析
         if len(options) <= 1:
-            match = re.match(r'^([A-Fa-fＡ-Ｆａ-ｆ])[\.、．\s]?\s*(.*)$', text)
+            match = re.match(r'^([A-Za-zＡ-Ｚａ-ｚ])[\.、．\s]?\s*(.*)$', text)
             if match:
                 key = self.normalize_option_letter(match.group(1))
                 value = match.group(2).strip()
@@ -374,8 +385,8 @@ class QuestionParser:
             
             # 检测题目行（包含答案标记的行）
             if self.has_answer_marker(line):
-                # 保存上一题
-                if current_question and current_question.get('options'):
+                # 保存上一题（即使选项解析不全，也不丢题目）
+                if current_question and (current_question.get('options') or current_question.get('question')):
                     questions.append(current_question)
                 
                 # 提取答案
@@ -424,7 +435,7 @@ class QuestionParser:
             i += 1
         
         # 保存最后一题
-        if current_question and current_question.get('options'):
+        if current_question and (current_question.get('options') or current_question.get('question')):
             questions.append(current_question)
         
         # 后处理

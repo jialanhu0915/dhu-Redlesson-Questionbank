@@ -21,6 +21,10 @@ let practiceStartTime = null;
 let isExamMode = false;  // 模拟考试模式
 let questionResults = []; // 存储每道题的作答结果
 let lastPracticeSettings = null; // 保存上次练习设置
+let isBackMode = false; // 背题库模式：仅显示正确选项
+let editOptionsState = []; // 编辑弹窗中当前的选项列表
+let currentPracticeMode = 'random'; // 当前做题模式：random/exam/sequence/wrong
+let currentWrongBankName = ''; // 错题本当前题库
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', function() {
@@ -131,14 +135,19 @@ function switchPage(page) {
     switch(page) {
         case 'dashboard':
             loadStats();
+            loadBankChapters();
             break;
         case 'manage':
             loadBanks();
+            break;
+        case 'wrongbook':
+            loadWrongBanks();
             break;
         case 'practice':
             loadPracticeOptions();
             showPracticeSettings();
             loadRankings();
+            loadProgressList();
             break;
         case 'settings':
             loadConfig();
@@ -158,21 +167,53 @@ async function loadStats() {
             document.getElementById('total-questions').textContent = stats.total_questions;
             document.getElementById('single-count').textContent = stats.single_choice_count;
             document.getElementById('multi-count').textContent = stats.multi_choice_count;
-            
-            // 渲染章节分布
-            const chapterList = document.getElementById('chapter-list');
-            chapterList.innerHTML = '';
-            Object.entries(stats.chapters).forEach(([name, count]) => {
-                chapterList.innerHTML += `
-                    <div class="chapter-item">
-                        <span class="chapter-name" title="${name}">${name}</span>
-                        <span class="chapter-count">${count}题</span>
-                    </div>
-                `;
-            });
         }
     } catch (error) {
         console.error('加载统计数据失败:', error);
+    }
+}
+
+// 加载按题库分组的章节分布
+async function loadBankChapters() {
+    try {
+        const response = await fetch(`${API_BASE}/api/stats/by_bank`);
+        const data = await response.json();
+        
+        const container = document.getElementById('bank-chapters-container');
+        if (!container) return;
+        
+        if (data.success && Object.keys(data.stats).length > 0) {
+            container.innerHTML = Object.entries(data.stats).map(([bankName, bankData]) => {
+                const chaptersHtml = Object.entries(bankData.chapters).map(([chapterName, count]) => `
+                    <div class="chapter-item">
+                        <span class="chapter-name" title="${chapterName}">${chapterName}</span>
+                        <span class="chapter-count">${count}题</span>
+                    </div>
+                `).join('');
+                
+                return `
+                    <div class="bank-chapter-group">
+                        <div class="bank-title">
+                            <i class="fas fa-book"></i>
+                            ${bankName}
+                            <span class="bank-count">(共${bankData.total}题)</span>
+                        </div>
+                        <div class="chapter-list">
+                            ${chaptersHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>暂无题库，请先导入题库</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载题库章节失败:', error);
     }
 }
 
@@ -396,7 +437,26 @@ async function loadQuestions() {
         const questionList = document.getElementById('question-list');
         
         if (data.success && data.questions.length > 0) {
-            questionList.innerHTML = data.questions.map((q, index) => `
+            questionList.innerHTML = data.questions.map((q, index) => {
+                const answerSet = new Set(q.answer || []);
+                const optionEntries = Object.entries(q.options || {});
+                const visibleOptions = isBackMode && answerSet.size > 0
+                    ? optionEntries.filter(([key]) => answerSet.has(key))
+                    : optionEntries;
+                const answerBlock = isBackMode ? '' : `
+                    <div class="question-answer">
+                        <i class="fas fa-check-circle"></i> 正确答案: ${q.answer.join('')}
+                    </div>`;
+                const actionBlock = isBackMode ? '' : `
+                    <div class="question-actions">
+                        <button class="btn btn-secondary btn-small" onclick="editQuestion('${q.id}')">
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="confirmDeleteQuestion('${q.id}')">
+                            <i class="fas fa-trash"></i> 删除
+                        </button>
+                    </div>`;
+                return `
                 <div class="question-item ${q.type === 'multi' ? 'multi' : ''}">
                     <div class="question-header">
                         <span class="question-type ${q.type === 'multi' ? 'multi' : ''}">
@@ -406,23 +466,14 @@ async function loadQuestions() {
                     </div>
                     <div class="question-content">${index + 1}. ${q.question}</div>
                     <div class="question-options">
-                        ${Object.entries(q.options).map(([key, value]) => `
+                        ${visibleOptions.map(([key, value]) => `
                             <div class="option-item">${key}. ${value}</div>
                         `).join('')}
                     </div>
-                    <div class="question-answer">
-                        <i class="fas fa-check-circle"></i> 正确答案: ${q.answer.join('')}
-                    </div>
-                    <div class="question-actions">
-                        <button class="btn btn-secondary btn-small" onclick="editQuestion('${q.id}')">
-                            <i class="fas fa-edit"></i> 编辑
-                        </button>
-                        <button class="btn btn-danger btn-small" onclick="confirmDeleteQuestion('${q.id}')">
-                            <i class="fas fa-trash"></i> 删除
-                        </button>
-                    </div>
-                </div>
-            `).join('');
+                    ${answerBlock}
+                    ${actionBlock}
+                </div>`;
+            }).join('');
         } else {
             questionList.innerHTML = `
                 <div class="empty-state">
@@ -435,6 +486,11 @@ async function loadQuestions() {
         console.error('加载题目失败:', error);
         showToast('加载题目失败', 'error');
     }
+}
+
+function toggleBackMode(checked) {
+    isBackMode = !!checked;
+    loadQuestions();
 }
 
 function confirmDeleteBank(bankName) {
@@ -499,15 +555,12 @@ async function editQuestion(questionId) {
             document.getElementById('edit-question').value = q.question;
             document.getElementById('edit-type').value = q.type;
             document.getElementById('edit-answer').value = q.answer.join('');
-            
-            // 渲染选项编辑
-            const optionsDiv = document.getElementById('edit-options');
-            optionsDiv.innerHTML = ['A', 'B', 'C', 'D', 'E', 'F'].map(key => `
-                <div class="option-edit">
-                    <span>${key}.</span>
-                    <input type="text" id="edit-option-${key}" value="${q.options[key] || ''}" placeholder="选项${key}">
-                </div>
-            `).join('');
+
+            // 初始化可编辑选项列表（至少提供 A-D）
+            const baseKeys = ['A', 'B', 'C', 'D'];
+            const keys = Array.from(new Set([...baseKeys, ...Object.keys(q.options || {})])).sort();
+            editOptionsState = keys.map(k => ({ key: k, value: q.options[k] || '' }));
+            renderEditOptions();
             
             document.getElementById('edit-modal').classList.add('show');
         }
@@ -519,19 +572,20 @@ async function editQuestion(questionId) {
 function closeEditModal() {
     document.getElementById('edit-modal').classList.remove('show');
     editingQuestionId = null;
+    editOptionsState = [];
 }
 
 async function saveQuestion() {
     if (!editingQuestionId) return;
     
     const options = {};
-    ['A', 'B', 'C', 'D', 'E', 'F'].forEach(key => {
-        const input = document.getElementById(`edit-option-${key}`);
-        if (input) {
-            const value = input.value.trim();
-            if (value) {
-                options[key] = value;
-            }
+    document.querySelectorAll('#edit-options .option-edit').forEach(row => {
+        const key = row.dataset.key;
+        const input = row.querySelector('input');
+        if (!key || !input) return;
+        const value = input.value.trim();
+        if (value) {
+            options[key] = value;
         }
     });
     
@@ -539,7 +593,7 @@ async function saveQuestion() {
         question: document.getElementById('edit-question').value.trim(),
         type: document.getElementById('edit-type').value,
         options: options,
-        answer: document.getElementById('edit-answer').value.toUpperCase().split('')
+        answer: document.getElementById('edit-answer').value.toUpperCase().split('').filter(ch => options[ch])
     };
     
     try {
@@ -561,6 +615,42 @@ async function saveQuestion() {
     } catch (error) {
         showToast('保存失败: ' + error.message, 'error');
     }
+}
+
+// 渲染可编辑选项列表
+function renderEditOptions() {
+    const optionsDiv = document.getElementById('edit-options');
+    if (!optionsDiv) return;
+    optionsDiv.innerHTML = editOptionsState.map(item => `
+        <div class="option-edit" data-key="${item.key}">
+            <span>${item.key}.</span>
+            <input type="text" id="edit-option-${item.key}" value="${item.value || ''}" placeholder="选项${item.key}">
+            <button class="btn btn-danger btn-small" type="button" onclick="removeEditOption('${item.key}')">删除</button>
+        </div>
+    `).join('');
+}
+
+// 添加新选项
+function addEditOption() {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const existing = new Set(editOptionsState.map(o => o.key));
+    const next = [...letters].find(ch => !existing.has(ch));
+    if (!next) {
+        showToast('选项已达到上限', 'warning');
+        return;
+    }
+    editOptionsState.push({ key: next, value: '' });
+    renderEditOptions();
+}
+
+// 删除选项，至少保留两个
+function removeEditOption(key) {
+    if (editOptionsState.length <= 2) {
+        showToast('至少保留两个选项', 'warning');
+        return;
+    }
+    editOptionsState = editOptionsState.filter(o => o.key !== key);
+    renderEditOptions();
 }
 
 // ==================== 刷题功能 ====================
@@ -653,7 +743,7 @@ async function updateAvailableStats() {
 }
 
 function showPracticeSettings() {
-    document.getElementById('practice-settings').style.display = 'grid';
+    document.getElementById('practice-settings').style.display = 'flex';
     document.getElementById('practice-area').style.display = 'none';
     document.getElementById('practice-result').style.display = 'none';
     document.getElementById('practice-header-info').style.display = 'none';
@@ -673,6 +763,7 @@ async function startPractice(examMode = false) {
     const multiCount = parseInt(document.getElementById('practice-multi-count').value) || 0;
     const enableTimer = document.getElementById('enable-timer').checked;
     const timeMinutes = parseInt(document.getElementById('practice-time').value) || 35;
+    const shuffleOptionsEnabled = document.getElementById('shuffle-options')?.checked || false;
     
     if (singleCount === 0 && multiCount === 0) {
         showToast('请至少设置一种题型的数量', 'warning');
@@ -680,7 +771,8 @@ async function startPractice(examMode = false) {
     }
     
     // 保存练习设置
-    lastPracticeSettings = { bank, chapter, singleCount, multiCount, enableTimer, timeMinutes, examMode };
+    lastPracticeSettings = { bank, chapter, singleCount, multiCount, enableTimer, timeMinutes, examMode, shuffleOptionsEnabled, mode: examMode ? 'exam' : 'random' };
+    currentPracticeMode = examMode ? 'exam' : 'random';
     
     let url = `${API_BASE}/api/practice/random?single_count=${singleCount}&multi_count=${multiCount}`;
     if (bank) url += `&bank=${encodeURIComponent(bank)}`;
@@ -691,7 +783,10 @@ async function startPractice(examMode = false) {
         const data = await response.json();
         
         if (data.success && data.questions.length > 0) {
-            practiceQuestions = data.questions;
+            practiceQuestions = data.questions.map(q => ({
+                ...q,
+                shuffledOptions: shuffleOptionsEnabled ? shuffleEntries(Object.entries(q.options || {})) : null
+            }));
             currentQuestionIndex = 0;
             correctCount = 0;
             wrongCount = 0;
@@ -750,15 +845,39 @@ async function startPractice(examMode = false) {
 // 用相同设置再来一次
 function restartWithSameSettings() {
     if (lastPracticeSettings) {
-        document.getElementById('practice-bank').value = lastPracticeSettings.bank;
+        document.getElementById('practice-bank').value = lastPracticeSettings.bank || '';
         if (document.getElementById('practice-chapter')) {
-            document.getElementById('practice-chapter').value = lastPracticeSettings.chapter;
+            document.getElementById('practice-chapter').value = lastPracticeSettings.chapter || '';
         }
-        document.getElementById('practice-single-count').value = lastPracticeSettings.singleCount;
-        document.getElementById('practice-multi-count').value = lastPracticeSettings.multiCount;
+        document.getElementById('practice-single-count').value = lastPracticeSettings.singleCount || 0;
+        document.getElementById('practice-multi-count').value = lastPracticeSettings.multiCount || 0;
         document.getElementById('enable-timer').checked = lastPracticeSettings.enableTimer;
-        document.getElementById('practice-time').value = lastPracticeSettings.timeMinutes;
-        startPractice(lastPracticeSettings.examMode);
+        document.getElementById('practice-time').value = lastPracticeSettings.timeMinutes || 30;
+        if (document.getElementById('shuffle-options')) {
+            document.getElementById('shuffle-options').checked = lastPracticeSettings.shuffleOptionsEnabled;
+        }
+        if (document.getElementById('practice-mode')) {
+            document.getElementById('practice-mode').value = lastPracticeSettings.mode || 'random';
+        }
+        
+        // 根据保存的模式启动
+        const mode = lastPracticeSettings.mode || 'random';
+        switch (mode) {
+            case 'random':
+                startPractice(false);
+                break;
+            case 'exam':
+                startPractice(true);
+                break;
+            case 'sequence':
+                startSequencePractice();
+                break;
+            case 'wrong':
+                startWrongPractice();
+                break;
+            default:
+                startPractice(lastPracticeSettings.examMode);
+        }
     } else {
         showPracticeSettings();
     }
@@ -835,13 +954,14 @@ function renderQuestion() {
     
     // 渲染选项
     const optionsList = document.getElementById('options-list');
+    const optionEntries = question.shuffledOptions || Object.entries(question.options);
     
     // 检查这道题是否已经作答过
     if (result.answered) {
         // 已作答：显示结果状态（刷题模式和模拟考试最终提交后都适用）
         if (isExamMode) {
             // 模拟考试模式：显示已选答案但不显示对错
-            optionsList.innerHTML = Object.entries(question.options).map(([key, value]) => {
+            optionsList.innerHTML = optionEntries.map(([key, value]) => {
                 const isSelected = result.userAnswer.includes(key) ? 'selected' : '';
                 return `<button class="option-btn ${isSelected} disabled" data-key="${key}">
                     <span class="option-key">${key}</span>
@@ -851,7 +971,7 @@ function renderQuestion() {
             document.getElementById('answer-result').style.display = 'none';
         } else {
             // 刷题模式：显示完整结果
-            optionsList.innerHTML = Object.entries(question.options).map(([key, value]) => {
+            optionsList.innerHTML = optionEntries.map(([key, value]) => {
                 const isCorrect = result.correctAnswer.includes(key) ? 'correct' : '';
                 const isWrong = result.userAnswer.includes(key) && !result.correctAnswer.includes(key) ? 'wrong' : '';
                 const isSelected = result.userAnswer.includes(key) ? 'selected' : '';
@@ -889,7 +1009,7 @@ function renderQuestion() {
         }
     } else {
         // 未作答：正常渲染
-        optionsList.innerHTML = Object.entries(question.options).map(([key, value]) => `
+        optionsList.innerHTML = optionEntries.map(([key, value]) => `
             <button class="option-btn" onclick="selectOption('${key}', ${question.type === 'multi'})" data-key="${key}">
                 <span class="option-key">${key}</span>
                 <span class="option-text">${value}</span>
@@ -941,6 +1061,16 @@ function selectOption(key, isMulti) {
     }
 }
 
+// 洗牌函数：返回新的选项顺序数组
+function shuffleEntries(entries) {
+    const arr = [...entries];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
 async function submitAnswer() {
     if (selectedAnswers.length === 0) {
         showToast('请选择答案', 'warning');
@@ -969,6 +1099,11 @@ async function submitAnswer() {
                 correctAnswer: data.correct_answer,
                 isCorrect: data.correct
             };
+            
+            // 如果答错，添加到错题本
+            if (!data.correct) {
+                addToWrongbook(question.id, selectedAnswers);
+            }
             
             if (isExamMode) {
                 // 模拟考试模式：不显示答案，只标记已答
@@ -1406,4 +1541,590 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ==================== 做题模式切换 ====================
+function onPracticeModeChange() {
+    const mode = document.getElementById('practice-mode').value;
+    currentPracticeMode = mode;
+    
+    const shuffleQuestionsRow = document.getElementById('shuffle-questions-row');
+    const startBtn = document.getElementById('start-practice-btn');
+    const singleCountInput = document.getElementById('practice-single-count');
+    const multiCountInput = document.getElementById('practice-multi-count');
+    
+    // 顺序做题模式显示打乱题目选项
+    if (shuffleQuestionsRow) {
+        shuffleQuestionsRow.style.display = mode === 'sequence' ? 'block' : 'none';
+    }
+    
+    // 更新按钮文字
+    const modeNames = {
+        'random': '开始刷题',
+        'exam': '开始考试',
+        'sequence': '开始做题',
+        'wrong': '开始练习'
+    };
+    startBtn.innerHTML = `<i class="fas fa-play"></i> ${modeNames[mode] || '开始'}`;
+    
+    // 错题模式下更新可用题数
+    if (mode === 'wrong') {
+        updateWrongQuestionStats();
+    } else {
+        updateAvailableStats();
+    }
+}
+
+// 更新错题数量统计
+async function updateWrongQuestionStats() {
+    try {
+        const bank = document.getElementById('practice-bank').value;
+        let url = `${API_BASE}/api/wrongbook/stats`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            let singleCount = 0;
+            let multiCount = 0;
+            
+            if (bank && data.stats[bank]) {
+                singleCount = data.stats[bank].single || 0;
+                multiCount = data.stats[bank].multi || 0;
+            } else {
+                // 所有题库的错题
+                Object.values(data.stats).forEach(stat => {
+                    singleCount += stat.single || 0;
+                    multiCount += stat.multi || 0;
+                });
+            }
+            
+            document.getElementById('available-single').textContent = singleCount;
+            document.getElementById('available-multi').textContent = multiCount;
+        }
+    } catch (error) {
+        console.error('更新错题统计失败:', error);
+    }
+}
+
+// 根据模式开始练习
+function startPracticeByMode() {
+    const mode = document.getElementById('practice-mode').value;
+    currentPracticeMode = mode;
+    
+    switch (mode) {
+        case 'random':
+            startPractice(false);
+            break;
+        case 'exam':
+            startPractice(true);
+            break;
+        case 'sequence':
+            startSequencePractice();
+            break;
+        case 'wrong':
+            startWrongPractice();
+            break;
+        default:
+            startPractice(false);
+    }
+}
+
+// 顺序做题模式
+async function startSequencePractice() {
+    const bank = document.getElementById('practice-bank').value;
+    const chapter = document.getElementById('practice-chapter')?.value || '';
+    const shuffleQuestions = document.getElementById('shuffle-questions')?.checked || false;
+    const shuffleOptionsEnabled = document.getElementById('shuffle-options')?.checked || false;
+    const enableTimer = document.getElementById('enable-timer').checked;
+    const timeMinutes = parseInt(document.getElementById('practice-time').value) || 30;
+    
+    if (!bank) {
+        showToast('顺序做题模式请选择题库', 'warning');
+        return;
+    }
+    
+    let url = `${API_BASE}/api/practice/sequence?bank=${encodeURIComponent(bank)}`;
+    if (chapter) url += `&chapter=${encodeURIComponent(chapter)}`;
+    if (shuffleQuestions) url += `&shuffle=true`;
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success && data.questions.length > 0) {
+            practiceQuestions = data.questions.map(q => ({
+                ...q,
+                shuffledOptions: shuffleOptionsEnabled ? shuffleEntries(Object.entries(q.options || {})) : null
+            }));
+            
+            lastPracticeSettings = { 
+                bank, chapter, 
+                singleCount: 0, multiCount: 0, 
+                enableTimer, timeMinutes, 
+                examMode: false, shuffleOptionsEnabled,
+                mode: 'sequence', shuffleQuestions
+            };
+            
+            initPracticeSession(enableTimer, timeMinutes, false);
+        } else {
+            showToast('没有找到符合条件的题目', 'warning');
+        }
+    } catch (error) {
+        showToast('加载题目失败: ' + error.message, 'error');
+    }
+}
+
+// 错题练习模式
+async function startWrongPractice() {
+    const bank = document.getElementById('practice-bank').value;
+    const singleCount = parseInt(document.getElementById('practice-single-count').value) || 0;
+    const multiCount = parseInt(document.getElementById('practice-multi-count').value) || 0;
+    const shuffleOptionsEnabled = document.getElementById('shuffle-options')?.checked || false;
+    const enableTimer = document.getElementById('enable-timer').checked;
+    const timeMinutes = parseInt(document.getElementById('practice-time').value) || 30;
+    
+    if (singleCount === 0 && multiCount === 0) {
+        showToast('请至少设置一种题型的数量', 'warning');
+        return;
+    }
+    
+    let url = `${API_BASE}/api/practice/wrong?single_count=${singleCount}&multi_count=${multiCount}`;
+    if (bank) url += `&bank=${encodeURIComponent(bank)}`;
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success && data.questions.length > 0) {
+            practiceQuestions = data.questions.map(q => ({
+                ...q,
+                shuffledOptions: shuffleOptionsEnabled ? shuffleEntries(Object.entries(q.options || {})) : null
+            }));
+            
+            lastPracticeSettings = { 
+                bank, chapter: '', 
+                singleCount, multiCount, 
+                enableTimer, timeMinutes, 
+                examMode: false, shuffleOptionsEnabled,
+                mode: 'wrong'
+            };
+            
+            initPracticeSession(enableTimer, timeMinutes, false);
+        } else {
+            showToast('错题本中没有符合条件的题目', 'warning');
+        }
+    } catch (error) {
+        showToast('加载错题失败: ' + error.message, 'error');
+    }
+}
+
+// 初始化练习会话（公共逻辑）
+function initPracticeSession(enableTimer, timeMinutes, examMode) {
+    currentQuestionIndex = 0;
+    correctCount = 0;
+    wrongCount = 0;
+    selectedAnswers = [];
+    practiceStartTime = new Date();
+    isExamMode = examMode;
+    
+    questionResults = practiceQuestions.map(() => ({
+        answered: false,
+        userAnswer: [],
+        correctAnswer: [],
+        isCorrect: null
+    }));
+    
+    document.getElementById('practice-settings').style.display = 'none';
+    document.getElementById('practice-area').style.display = 'block';
+    document.getElementById('practice-result').style.display = 'none';
+    document.getElementById('practice-header-info').style.display = 'flex';
+    document.getElementById('question-nav-panel').style.display = 'block';
+    
+    // 设置模式标识
+    const modeBadge = document.getElementById('practice-mode-badge');
+    const modeTexts = {
+        'random': '刷题模式',
+        'exam': '模拟考试',
+        'sequence': '顺序做题',
+        'wrong': '错题练习'
+    };
+    modeBadge.textContent = modeTexts[currentPracticeMode] || '刷题模式';
+    modeBadge.className = `practice-mode-badge ${currentPracticeMode}`;
+    
+    if (isExamMode) {
+        document.getElementById('score-info').style.display = 'none';
+    } else {
+        document.getElementById('score-info').style.display = 'flex';
+    }
+    
+    renderQuestionNav();
+    
+    if (enableTimer) {
+        remainingTime = timeMinutes * 60;
+        document.getElementById('timer-display').style.display = 'flex';
+        updateTimerDisplay();
+        practiceTimer = setInterval(updateTimer, 1000);
+    } else {
+        document.getElementById('timer-display').style.display = 'none';
+    }
+    
+    renderQuestion();
+}
+
+// ==================== 错题本功能 ====================
+async function loadWrongBanks() {
+    try {
+        const response = await fetch(`${API_BASE}/api/wrongbook/stats`);
+        const data = await response.json();
+        
+        const bankList = document.getElementById('wrong-bank-list');
+        
+        if (data.success && Object.keys(data.stats).length > 0) {
+            bankList.innerHTML = Object.entries(data.stats).map(([bankName, stats]) => `
+                <div class="bank-card">
+                    <div class="bank-info" onclick="browseWrongBank('${bankName}')">
+                        <div class="bank-name">${bankName}</div>
+                        <div class="bank-meta">
+                            单选: ${stats.single}题 | 多选: ${stats.multi}题
+                        </div>
+                    </div>
+                    <div class="bank-stats">
+                        <span class="bank-count wrong-count-badge">${stats.total} 道错题</span>
+                        <div class="bank-actions">
+                            <button class="btn btn-secondary btn-small" onclick="browseWrongBank('${bankName}')">
+                                <i class="fas fa-eye"></i> 查看
+                            </button>
+                            <button class="btn btn-danger btn-small" onclick="confirmClearWrongBank('${bankName}')">
+                                <i class="fas fa-trash"></i> 清空
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            bankList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-smile"></i>
+                    <p>错题本为空，继续保持！</p>
+                </div>
+            `;
+        }
+        
+        document.getElementById('wrong-question-browser').style.display = 'none';
+        document.getElementById('wrong-bank-list').style.display = 'grid';
+    } catch (error) {
+        console.error('加载错题本失败:', error);
+        showToast('加载错题本失败', 'error');
+    }
+}
+
+function showWrongBankList() {
+    document.getElementById('wrong-question-browser').style.display = 'none';
+    document.getElementById('wrong-bank-list').style.display = 'grid';
+}
+
+async function browseWrongBank(bankName) {
+    currentWrongBankName = bankName;
+    document.getElementById('wrong-current-bank-name').textContent = bankName + ' - 错题';
+    document.getElementById('wrong-bank-list').style.display = 'none';
+    document.getElementById('wrong-question-browser').style.display = 'block';
+    
+    await loadWrongQuestions(bankName);
+}
+
+async function loadWrongQuestions(bankName) {
+    try {
+        const response = await fetch(`${API_BASE}/api/wrongbook?bank=${encodeURIComponent(bankName)}`);
+        const data = await response.json();
+        
+        const questionList = document.getElementById('wrong-question-list');
+        
+        if (data.success && data.wrong_questions.length > 0) {
+            questionList.innerHTML = data.wrong_questions.map((q, index) => `
+                <div class="question-item ${q.type === 'multi' ? 'multi' : ''}">
+                    <div class="question-header">
+                        <span class="question-type ${q.type === 'multi' ? 'multi' : ''}">
+                            ${q.type === 'multi' ? '多选题' : '单选题'}
+                        </span>
+                        <span class="question-chapter">${q.chapter}</span>
+                        <span class="wrong-count-badge" style="margin-left: auto;">错${q.wrong_count || 1}次</span>
+                    </div>
+                    <div class="question-content">${index + 1}. ${q.question}</div>
+                    <div class="question-options">
+                        ${Object.entries(q.options || {}).map(([key, value]) => {
+                            const isCorrect = q.answer.includes(key) ? 'correct-answer' : '';
+                            const isWrong = (q.last_wrong_answer || []).includes(key) && !q.answer.includes(key) ? 'wrong-answer' : '';
+                            return `<div class="option-item ${isCorrect} ${isWrong}">${key}. ${value}</div>`;
+                        }).join('')}
+                    </div>
+                    <div class="question-answer">
+                        <i class="fas fa-check-circle"></i> 正确答案: ${q.answer.join('')}
+                        ${q.last_wrong_answer ? `<span style="margin-left:15px; color:var(--danger-color);"><i class="fas fa-times-circle"></i> 上次答案: ${q.last_wrong_answer.join('')}</span>` : ''}
+                    </div>
+                    <div class="question-actions">
+                        <button class="btn btn-success btn-small" onclick="removeFromWrongbook('${q.id}')">
+                            <i class="fas fa-check"></i> 已掌握
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            questionList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-smile"></i>
+                    <p>此题库暂无错题</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载错题失败:', error);
+        showToast('加载错题失败', 'error');
+    }
+}
+
+async function removeFromWrongbook(questionId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/wrongbook/${questionId}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('已从错题本移除', 'success');
+            loadWrongQuestions(currentWrongBankName);
+        } else {
+            showToast(data.error, 'error');
+        }
+    } catch (error) {
+        showToast('移除失败: ' + error.message, 'error');
+    }
+}
+
+function confirmClearWrongBank(bankName) {
+    showConfirmModal(
+        '清空错题',
+        `确定要清空"${bankName}"的所有错题吗？`,
+        async () => {
+            try {
+                const response = await fetch(`${API_BASE}/api/wrongbook/bank/${encodeURIComponent(bankName)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    loadWrongBanks();
+                } else {
+                    showToast(data.error, 'error');
+                }
+            } catch (error) {
+                showToast('清空失败: ' + error.message, 'error');
+            }
+        }
+    );
+}
+
+function clearWrongQuestionsByBank() {
+    if (currentWrongBankName) {
+        confirmClearWrongBank(currentWrongBankName);
+    }
+}
+
+// 添加错题到错题本
+async function addToWrongbook(questionId, userAnswer) {
+    try {
+        await fetch(`${API_BASE}/api/wrongbook`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question_id: questionId,
+                user_answer: userAnswer
+            })
+        });
+    } catch (error) {
+        console.error('添加错题失败:', error);
+    }
+}
+
+// ==================== 进度保存功能 ====================
+async function loadProgressList() {
+    try {
+        const response = await fetch(`${API_BASE}/api/progress`);
+        const data = await response.json();
+        
+        const container = document.getElementById('progress-list');
+        if (!container) return;
+        
+        if (data.success && data.progress_list.length > 0) {
+            container.innerHTML = data.progress_list.map(p => {
+                const modeNames = {
+                    'random': '随机刷题',
+                    'exam': '模拟考试',
+                    'sequence': '顺序做题',
+                    'wrong': '错题练习'
+                };
+                return `
+                    <div class="progress-item" onclick="loadProgress('${p.id}')">
+                        <div>
+                            <div class="mode-name">${modeNames[p.mode] || '刷题'}</div>
+                            <div class="progress-info">${p.bank || '全部'} | ${p.current_index + 1}/${p.total}题</div>
+                        </div>
+                        <div class="progress-actions">
+                            <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteProgress('${p.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            container.innerHTML = '<div class="empty-progress">暂无保存的进度</div>';
+        }
+    } catch (error) {
+        console.error('加载进度失败:', error);
+    }
+}
+
+async function saveCurrentProgress() {
+    if (practiceQuestions.length === 0) {
+        showToast('当前没有进行中的练习', 'warning');
+        return;
+    }
+    
+    const progressData = {
+        mode: currentPracticeMode,
+        bank: lastPracticeSettings?.bank || '',
+        chapter: lastPracticeSettings?.chapter || '',
+        current_index: currentQuestionIndex,
+        total: practiceQuestions.length,
+        correct: correctCount,
+        wrong: wrongCount,
+        question_ids: practiceQuestions.map(q => q.id),
+        question_results: questionResults,
+        remaining_time: remainingTime
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/progress`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(progressData)
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('进度已保存', 'success');
+            loadProgressList();
+        } else {
+            showToast('保存失败', 'error');
+        }
+    } catch (error) {
+        showToast('保存失败: ' + error.message, 'error');
+    }
+}
+
+async function loadProgress(progressId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/progress/${progressId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const progress = data.progress;
+            
+            // 重新加载题目
+            const questionIds = progress.question_ids || [];
+            const questionsResponse = await fetch(`${API_BASE}/api/questions`);
+            const questionsData = await questionsResponse.json();
+            
+            if (questionsData.success) {
+                // 按保存的顺序恢复题目
+                const questionMap = {};
+                questionsData.questions.forEach(q => { questionMap[q.id] = q; });
+                
+                practiceQuestions = questionIds.map(id => questionMap[id]).filter(q => q);
+                
+                if (practiceQuestions.length === 0) {
+                    showToast('进度中的题目已被删除', 'error');
+                    return;
+                }
+                
+                currentQuestionIndex = progress.current_index || 0;
+                correctCount = progress.correct || 0;
+                wrongCount = progress.wrong || 0;
+                questionResults = progress.question_results || practiceQuestions.map(() => ({
+                    answered: false, userAnswer: [], correctAnswer: [], isCorrect: null
+                }));
+                currentPracticeMode = progress.mode || 'random';
+                isExamMode = progress.mode === 'exam';
+                remainingTime = progress.remaining_time || 0;
+                practiceStartTime = new Date();
+                
+                lastPracticeSettings = {
+                    bank: progress.bank,
+                    chapter: progress.chapter,
+                    mode: progress.mode
+                };
+                
+                // 显示练习界面
+                document.getElementById('practice-settings').style.display = 'none';
+                document.getElementById('practice-area').style.display = 'block';
+                document.getElementById('practice-result').style.display = 'none';
+                document.getElementById('practice-header-info').style.display = 'flex';
+                document.getElementById('question-nav-panel').style.display = 'block';
+                
+                const modeBadge = document.getElementById('practice-mode-badge');
+                const modeTexts = {
+                    'random': '刷题模式',
+                    'exam': '模拟考试',
+                    'sequence': '顺序做题',
+                    'wrong': '错题练习'
+                };
+                modeBadge.textContent = modeTexts[currentPracticeMode] || '刷题模式';
+                modeBadge.className = `practice-mode-badge ${currentPracticeMode}`;
+                
+                document.getElementById('score-info').style.display = isExamMode ? 'none' : 'flex';
+                
+                if (remainingTime > 0) {
+                    document.getElementById('timer-display').style.display = 'flex';
+                    updateTimerDisplay();
+                    practiceTimer = setInterval(updateTimer, 1000);
+                } else {
+                    document.getElementById('timer-display').style.display = 'none';
+                }
+                
+                renderQuestionNav();
+                renderQuestion();
+                
+                showToast('进度已恢复', 'success');
+                
+                // 删除已加载的进度
+                deleteProgress(progressId, true);
+            }
+        } else {
+            showToast('加载进度失败', 'error');
+        }
+    } catch (error) {
+        showToast('加载进度失败: ' + error.message, 'error');
+    }
+}
+
+async function deleteProgress(progressId, silent = false) {
+    try {
+        const response = await fetch(`${API_BASE}/api/progress/${progressId}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            if (!silent) {
+                showToast('进度已删除', 'success');
+            }
+            loadProgressList();
+        }
+    } catch (error) {
+        if (!silent) {
+            showToast('删除失败: ' + error.message, 'error');
+        }
+    }
 }

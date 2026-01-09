@@ -655,6 +655,401 @@ def clear_rankings():
     })
 
 
+# ==================== 错题本相关API ====================
+
+def get_wrongbook_file_path():
+    """获取错题本文件路径"""
+    config = load_config()
+    data_path = config.get('data_path', os.path.join(BASE_DIR, 'data'))
+    os.makedirs(data_path, exist_ok=True)
+    return os.path.join(data_path, 'wrongbook.json')
+
+
+def load_wrongbook():
+    """加载错题本数据"""
+    file_path = get_wrongbook_file_path()
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {"wrong_questions": []}
+
+
+def save_wrongbook(data):
+    """保存错题本数据"""
+    file_path = get_wrongbook_file_path()
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.route('/api/wrongbook', methods=['GET'])
+def get_wrongbook():
+    """获取错题本
+    
+    支持参数：
+    - bank: 按题库筛选
+    """
+    data = load_wrongbook()
+    wrong_questions = data.get('wrong_questions', [])
+    
+    bank = request.args.get('bank', '')
+    if bank:
+        wrong_questions = [q for q in wrong_questions if q.get('bank') == bank]
+    
+    return jsonify({
+        "success": True,
+        "wrong_questions": wrong_questions,
+        "total": len(wrong_questions)
+    })
+
+
+@app.route('/api/wrongbook/stats', methods=['GET'])
+def get_wrongbook_stats():
+    """获取错题本统计，按题库分组"""
+    data = load_wrongbook()
+    wrong_questions = data.get('wrong_questions', [])
+    
+    # 按题库分组统计
+    bank_stats = {}
+    for q in wrong_questions:
+        bank = q.get('bank', '未知题库')
+        if bank not in bank_stats:
+            bank_stats[bank] = {'total': 0, 'single': 0, 'multi': 0}
+        bank_stats[bank]['total'] += 1
+        if q.get('type') == 'single':
+            bank_stats[bank]['single'] += 1
+        else:
+            bank_stats[bank]['multi'] += 1
+    
+    return jsonify({
+        "success": True,
+        "stats": bank_stats,
+        "total": len(wrong_questions)
+    })
+
+
+@app.route('/api/wrongbook', methods=['POST'])
+def add_wrong_question():
+    """添加错题"""
+    req_data = request.json
+    question_id = req_data.get('question_id', '')
+    user_answer = req_data.get('user_answer', [])
+    
+    # 获取题目详情
+    questions_data = load_questions()
+    question = None
+    for q in questions_data.get('questions', []):
+        if q.get('id') == question_id:
+            question = q.copy()
+            break
+    
+    if not question:
+        return jsonify({
+            "success": False,
+            "error": "题目不存在"
+        }), 404
+    
+    # 加载错题本
+    data = load_wrongbook()
+    
+    # 检查是否已存在
+    existing_ids = [q.get('id') for q in data.get('wrong_questions', [])]
+    if question_id not in existing_ids:
+        from datetime import datetime
+        question['added_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        question['wrong_count'] = 1
+        question['last_wrong_answer'] = user_answer
+        data['wrong_questions'].append(question)
+    else:
+        # 更新错误次数
+        for q in data['wrong_questions']:
+            if q.get('id') == question_id:
+                q['wrong_count'] = q.get('wrong_count', 1) + 1
+                q['last_wrong_answer'] = user_answer
+                break
+    
+    save_wrongbook(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "已添加到错题本"
+    })
+
+
+@app.route('/api/wrongbook/<question_id>', methods=['DELETE'])
+def remove_wrong_question(question_id):
+    """从错题本移除单个题目"""
+    data = load_wrongbook()
+    original_count = len(data.get('wrong_questions', []))
+    data['wrong_questions'] = [q for q in data.get('wrong_questions', []) if q.get('id') != question_id]
+    
+    if len(data['wrong_questions']) < original_count:
+        save_wrongbook(data)
+        return jsonify({
+            "success": True,
+            "message": "已从错题本移除"
+        })
+    return jsonify({
+        "success": False,
+        "error": "错题不存在"
+    }), 404
+
+
+@app.route('/api/wrongbook/bank/<bank_name>', methods=['DELETE'])
+def clear_wrong_questions_by_bank(bank_name):
+    """清空某个题库的所有错题"""
+    data = load_wrongbook()
+    original_count = len(data.get('wrong_questions', []))
+    data['wrong_questions'] = [q for q in data.get('wrong_questions', []) if q.get('bank') != bank_name]
+    
+    removed = original_count - len(data['wrong_questions'])
+    save_wrongbook(data)
+    
+    return jsonify({
+        "success": True,
+        "message": f"已清空 {removed} 道错题"
+    })
+
+
+@app.route('/api/wrongbook', methods=['DELETE'])
+def clear_wrongbook():
+    """清空整个错题本"""
+    save_wrongbook({"wrong_questions": []})
+    return jsonify({
+        "success": True,
+        "message": "错题本已清空"
+    })
+
+
+# ==================== 进度保存相关API ====================
+
+def get_progress_file_path():
+    """获取进度文件路径"""
+    config = load_config()
+    data_path = config.get('data_path', os.path.join(BASE_DIR, 'data'))
+    os.makedirs(data_path, exist_ok=True)
+    return os.path.join(data_path, 'progress.json')
+
+
+def load_progress():
+    """加载进度数据"""
+    file_path = get_progress_file_path()
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {"progress_list": []}
+
+
+def save_progress_data(data):
+    """保存进度数据"""
+    file_path = get_progress_file_path()
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.route('/api/progress', methods=['GET'])
+def get_all_progress():
+    """获取所有保存的进度"""
+    data = load_progress()
+    return jsonify({
+        "success": True,
+        "progress_list": data.get('progress_list', [])
+    })
+
+
+@app.route('/api/progress', methods=['POST'])
+def save_practice_progress():
+    """保存做题进度"""
+    req_data = request.json
+    from datetime import datetime
+    
+    progress = {
+        "id": str(abs(hash(str(datetime.now())))),
+        "mode": req_data.get('mode', 'random'),
+        "bank": req_data.get('bank', ''),
+        "chapter": req_data.get('chapter', ''),
+        "current_index": req_data.get('current_index', 0),
+        "total": req_data.get('total', 0),
+        "correct": req_data.get('correct', 0),
+        "wrong": req_data.get('wrong', 0),
+        "question_ids": req_data.get('question_ids', []),
+        "question_results": req_data.get('question_results', []),
+        "remaining_time": req_data.get('remaining_time', 0),
+        "save_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    data = load_progress()
+    # 限制最多保存10个进度
+    data['progress_list'] = data.get('progress_list', [])[:9]
+    data['progress_list'].insert(0, progress)
+    save_progress_data(data)
+    
+    return jsonify({
+        "success": True,
+        "message": "进度已保存",
+        "progress": progress
+    })
+
+
+@app.route('/api/progress/<progress_id>', methods=['GET'])
+def get_progress(progress_id):
+    """获取单个进度详情"""
+    data = load_progress()
+    for p in data.get('progress_list', []):
+        if p.get('id') == progress_id:
+            return jsonify({
+                "success": True,
+                "progress": p
+            })
+    return jsonify({
+        "success": False,
+        "error": "进度不存在"
+    }), 404
+
+
+@app.route('/api/progress/<progress_id>', methods=['DELETE'])
+def delete_progress(progress_id):
+    """删除单个进度"""
+    data = load_progress()
+    original_count = len(data.get('progress_list', []))
+    data['progress_list'] = [p for p in data.get('progress_list', []) if p.get('id') != progress_id]
+    
+    if len(data['progress_list']) < original_count:
+        save_progress_data(data)
+        return jsonify({
+            "success": True,
+            "message": "进度已删除"
+        })
+    return jsonify({
+        "success": False,
+        "error": "进度不存在"
+    }), 404
+
+
+# ==================== 顺序做题相关API ====================
+
+@app.route('/api/practice/sequence', methods=['GET'])
+def get_sequence_questions():
+    """获取顺序做题的题目列表
+    
+    支持参数：
+    - bank: 题库名称
+    - chapter: 章节名称
+    - shuffle: 是否打乱顺序
+    """
+    data = load_questions()
+    questions = data.get('questions', [])
+    
+    # 按题库筛选
+    bank = request.args.get('bank', '')
+    if bank:
+        questions = [q for q in questions if q.get('bank') == bank]
+    
+    # 按章节筛选
+    chapter = request.args.get('chapter', '')
+    if chapter:
+        questions = [q for q in questions if q.get('chapter') == chapter]
+    
+    # 是否打乱顺序
+    shuffle = request.args.get('shuffle', 'false').lower() == 'true'
+    if shuffle:
+        questions = questions.copy()
+        random.shuffle(questions)
+    
+    return jsonify({
+        "success": True,
+        "questions": questions,
+        "total": len(questions)
+    })
+
+
+@app.route('/api/practice/wrong', methods=['GET'])
+def get_wrong_practice_questions():
+    """获取错题练习的题目列表
+    
+    支持参数：
+    - bank: 按题库筛选
+    - single_count: 单选题数量
+    - multi_count: 多选题数量
+    """
+    data = load_wrongbook()
+    questions = data.get('wrong_questions', [])
+    
+    # 按题库筛选
+    bank = request.args.get('bank', '')
+    if bank:
+        questions = [q for q in questions if q.get('bank') == bank]
+    
+    # 分离单选和多选题
+    single_questions = [q for q in questions if q.get('type') == 'single']
+    multi_questions = [q for q in questions if q.get('type') == 'multi']
+    
+    single_count = request.args.get('single_count', '')
+    multi_count = request.args.get('multi_count', '')
+    
+    if single_count or multi_count:
+        single_count = int(single_count) if single_count else 0
+        multi_count = int(multi_count) if multi_count else 0
+        
+        selected = []
+        
+        if single_count > 0:
+            single_count = min(single_count, len(single_questions))
+            selected.extend(random.sample(single_questions, single_count) if single_questions else [])
+        
+        if multi_count > 0:
+            multi_count = min(multi_count, len(multi_questions))
+            selected.extend(random.sample(multi_questions, multi_count) if multi_questions else [])
+        
+        random.shuffle(selected)
+        questions = selected
+    else:
+        random.shuffle(questions)
+    
+    return jsonify({
+        "success": True,
+        "questions": questions,
+        "total": len(questions)
+    })
+
+
+@app.route('/api/stats/by_bank', methods=['GET'])
+def get_stats_by_bank():
+    """获取按题库分组的统计信息"""
+    data = load_questions()
+    questions = data.get('questions', [])
+    banks = data.get('banks', {})
+    
+    # 按题库分组统计
+    bank_stats = {}
+    for q in questions:
+        bank = q.get('bank', '未知题库')
+        if bank not in bank_stats:
+            bank_stats[bank] = {
+                'total': 0,
+                'single': 0,
+                'multi': 0,
+                'chapters': {}
+            }
+        bank_stats[bank]['total'] += 1
+        if q.get('type') == 'single':
+            bank_stats[bank]['single'] += 1
+        else:
+            bank_stats[bank]['multi'] += 1
+        
+        # 统计章节
+        chapter = q.get('chapter', '未分类')
+        if chapter not in bank_stats[bank]['chapters']:
+            bank_stats[bank]['chapters'][chapter] = 0
+        bank_stats[bank]['chapters'][chapter] += 1
+    
+    return jsonify({
+        "success": True,
+        "stats": bank_stats
+    })
+
+
 if __name__ == '__main__':
     config = load_config()
     port = config.get('port', 5000)

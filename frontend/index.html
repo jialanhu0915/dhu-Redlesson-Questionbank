@@ -30,6 +30,10 @@
                     <i class="fas fa-database"></i>
                     <span>题库管理</span>
                 </li>
+                <li class="nav-item" data-page="wrongbook">
+                    <i class="fas fa-times-circle"></i>
+                    <span>错题本</span>
+                </li>
                 <li class="nav-item" data-page="practice">
                     <i class="fas fa-pen"></i>
                     <span>开始刷题</span>
@@ -90,8 +94,10 @@
                 </div>
 
                 <div class="chapter-stats" id="chapter-stats">
-                    <h2>章节分布</h2>
-                    <div class="chapter-list" id="chapter-list"></div>
+                    <h2>题库概览</h2>
+                    <div class="bank-chapters-container" id="bank-chapters-container">
+                        <!-- 按题库分类的章节将由JS动态生成 -->
+                    </div>
                 </div>
             </div>
 
@@ -159,6 +165,10 @@
                             <select id="filter-chapter">
                                 <option value="">全部章节</option>
                             </select>
+                            <label class="inline-toggle">
+                                <input type="checkbox" id="back-mode-toggle" onchange="toggleBackMode(this.checked)">
+                                背题模式
+                            </label>
                         </div>
                         <div class="question-list" id="question-list"></div>
                     </div>
@@ -184,6 +194,9 @@
                                     id="correct-num">0</span></span>
                             <span class="wrong-count"><i class="fas fa-times"></i> <span id="wrong-num">0</span></span>
                         </div>
+                        <button class="btn btn-secondary btn-small" onclick="saveCurrentProgress()" title="保存进度">
+                            <i class="fas fa-save"></i> 保存进度
+                        </button>
                     </div>
                 </div>
 
@@ -192,66 +205,89 @@
                     <div class="practice-main">
                         <!-- 刷题设置 -->
                         <div class="practice-settings" id="practice-settings">
-                            <div class="settings-card">
-                                <h3>选择题库</h3>
-                                <select id="practice-bank" class="form-control">
-                                    <option value="">全部题库</option>
-                                </select>
-                            </div>
-                            <div class="settings-card">
-                                <h3>选择章节</h3>
-                                <select id="practice-chapter" class="form-control">
-                                    <option value="">全部章节</option>
-                                </select>
-                            </div>
-                            <div class="settings-card">
-                                <h3>题目配置</h3>
-                                <div class="question-config">
-                                    <div class="config-row">
-                                        <label>单选题数量</label>
-                                        <input type="number" id="practice-single-count" class="form-control" value="10"
-                                            min="0" max="500">
-                                    </div>
-                                    <div class="config-row">
-                                        <label>多选题数量</label>
-                                        <input type="number" id="practice-multi-count" class="form-control" value="5"
-                                            min="0" max="500">
-                                    </div>
+                            <div class="settings-row-top">
+                                <div class="settings-card">
+                                    <h3>选择题库</h3>
+                                    <select id="practice-bank" class="form-control">
+                                        <option value="">全部题库</option>
+                                    </select>
+                                </div>
+                                <div class="settings-card">
+                                    <h3>选择章节</h3>
+                                    <select id="practice-chapter" class="form-control">
+                                        <option value="">全部章节</option>
+                                    </select>
+                                </div>
+                                <div class="settings-card">
+                                    <h3>做题模式</h3>
+                                    <select id="practice-mode" class="form-control" onchange="onPracticeModeChange()">
+                                        <option value="random">随机抽题</option>
+                                        <option value="exam">模拟考试</option>
+                                        <option value="sequence">顺序做题</option>
+                                        <option value="wrong">错题练习</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div class="settings-card">
-                                <h3>限时设置</h3>
-                                <div class="timer-config">
-                                    <div class="config-row">
-                                        <label>
-                                            <input type="checkbox" id="enable-timer" checked> 启用限时
-                                        </label>
-                                    </div>
-                                    <div class="config-row">
-                                        <label>答题时间（分钟）</label>
-                                        <input type="number" id="practice-time" class="form-control" value="35" min="1"
-                                            max="180">
+                            <div class="settings-row-bottom">
+                                <div class="settings-card">
+                                    <h3>题目配置</h3>
+                                    <div class="question-config">
+                                        <div class="config-row">
+                                            <label>单选题数量</label>
+                                            <input type="number" id="practice-single-count" class="form-control"
+                                                value="30" min="0" max="500">
+                                        </div>
+                                        <div class="config-row">
+                                            <label>多选题数量</label>
+                                            <input type="number" id="practice-multi-count" class="form-control"
+                                                value="20" min="0" max="500">
+                                        </div>
+                                        <div class="config-row">
+                                            <label>
+                                                <input type="checkbox" id="shuffle-options" checked> 随机打乱选项
+                                            </label>
+                                        </div>
+                                        <div class="config-row" id="shuffle-questions-row" style="display: none;">
+                                            <label>
+                                                <input type="checkbox" id="shuffle-questions"> 打乱题目顺序
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="settings-card stats-preview" id="stats-preview">
-                                <h3>题库统计</h3>
-                                <div class="preview-content">
-                                    <p>单选题可用: <span id="available-single">0</span> 道</p>
-                                    <p>多选题可用: <span id="available-multi">0</span> 道</p>
+                                <div class="settings-card">
+                                    <h3>限时设置</h3>
+                                    <div class="timer-config">
+                                        <div class="config-row">
+                                            <label>
+                                                <input type="checkbox" id="enable-timer" checked> 启用限时
+                                            </label>
+                                        </div>
+                                        <div class="config-row">
+                                            <label>答题时间（分钟）</label>
+                                            <input type="number" id="practice-time" class="form-control" value="30"
+                                                min="1" max="180">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="settings-card stats-preview" id="stats-preview">
+                                    <h3>题库统计</h3>
+                                    <div class="preview-content">
+                                        <p>单选题可用: <span id="available-single">0</span> 道</p>
+                                        <p>多选题可用: <span id="available-multi">0</span> 道</p>
+                                    </div>
+                                </div>
+                                <div class="settings-card">
+                                    <h3>你的名字</h3>
+                                    <input type="text" id="player-name" class="form-control" placeholder="输入名字记录成绩"
+                                        value="匿名">
                                 </div>
                             </div>
-                            <div class="settings-card">
-                                <h3>你的名字</h3>
-                                <input type="text" id="player-name" class="form-control" placeholder="输入名字记录成绩"
-                                    value="匿名">
+                            <div class="practice-start-btn">
+                                <button class="btn btn-primary btn-large" id="start-practice-btn"
+                                    onclick="startPracticeByMode()">
+                                    <i class="fas fa-play"></i> 开始刷题
+                                </button>
                             </div>
-                            <button class="btn btn-primary btn-large" onclick="startPractice(false)">
-                                <i class="fas fa-play"></i> 开始刷题
-                            </button>
-                            <button class="btn btn-success btn-large" onclick="startPractice(true)">
-                                <i class="fas fa-file-alt"></i> 模拟考试
-                            </button>
                         </div>
 
                         <!-- 刷题界面 -->
@@ -351,8 +387,41 @@
                                 <!-- 动态生成题目导航按钮 -->
                             </div>
                         </div>
+
+                        <!-- 进度保存面板 -->
+                        <div class="progress-panel" id="progress-panel">
+                            <div class="progress-panel-header">
+                                <h3><i class="fas fa-bookmark"></i> 做题进度</h3>
+                            </div>
+                            <div class="progress-list" id="progress-list">
+                                <div class="empty-progress">暂无保存的进度</div>
+                            </div>
+                        </div>
                     </div>
                 </div><!-- end practice-layout -->
+            </div>
+
+            <!-- 错题本页 -->
+            <div id="wrongbook-page" class="page">
+                <h1>错题本</h1>
+                <div class="manage-section">
+                    <div class="bank-list" id="wrong-bank-list">
+                        <!-- 错题按题库分类列表将通过JS动态生成 -->
+                    </div>
+                    <div class="question-browser" id="wrong-question-browser" style="display: none;">
+                        <div class="browser-header">
+                            <button class="btn btn-secondary" onclick="showWrongBankList()">
+                                <i class="fas fa-arrow-left"></i> 返回
+                            </button>
+                            <h2 id="wrong-current-bank-name"></h2>
+                            <button class="btn btn-danger btn-small" onclick="clearWrongQuestionsByBank()"
+                                style="margin-left: auto;">
+                                <i class="fas fa-trash"></i> 清空此题库错题
+                            </button>
+                        </div>
+                        <div class="question-list" id="wrong-question-list"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 设置页 -->
@@ -420,6 +489,10 @@
                 <div class="form-group">
                     <label>选项</label>
                     <div id="edit-options"></div>
+                    <button class="btn btn-secondary btn-small" type="button" onclick="addEditOption()"
+                        style="margin-top: 8px;">
+                        <i class="fas fa-plus"></i> 添加选项
+                    </button>
                 </div>
                 <div class="form-group">
                     <label>正确答案</label>
