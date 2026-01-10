@@ -770,6 +770,9 @@ function showPracticeSettings() {
         clearInterval(practiceTimer);
         practiceTimer = null;
     }
+    
+    // 返回设置页时展开排行榜面板
+    document.getElementById('ranking-panel-wrapper').classList.remove('collapsed');
 }
 
 async function startPractice(examMode = false) {
@@ -835,6 +838,9 @@ async function startPractice(examMode = false) {
             document.getElementById('practice-result').style.display = 'none';
             document.getElementById('practice-header-info').style.display = 'flex';
             document.getElementById('question-nav-panel').style.display = 'block';
+            
+            // 进入刷题后折叠排行榜面板
+            document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
             
             // 设置模式标识
             const modeBadge = document.getElementById('practice-mode-badge');
@@ -1953,6 +1959,9 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     document.getElementById('practice-header-info').style.display = 'flex';
     document.getElementById('question-nav-panel').style.display = 'block';
     
+    // 进入刷题后折叠排行榜面板
+    document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
+    
     // 设置模式标识
     const modeBadge = document.getElementById('practice-mode-badge');
     const modeTexts = {
@@ -2304,6 +2313,9 @@ async function loadProgress(progressId) {
                 document.getElementById('practice-result').style.display = 'none';
                 document.getElementById('practice-header-info').style.display = 'flex';
                 document.getElementById('question-nav-panel').style.display = 'block';
+                
+                // 进入刷题后折叠排行榜面板
+                document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
                 
                 const modeBadge = document.getElementById('practice-mode-badge');
                 const modeTexts = {

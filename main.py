@@ -20,7 +20,7 @@ from backend.app import app
 def open_browser():
     """延迟打开浏览器"""
     time.sleep(0.5)
-    webbrowser.open('http://127.0.0.1:5000')
+    webbrowser.open('http://localhost:5000')
 
 
 def main():
