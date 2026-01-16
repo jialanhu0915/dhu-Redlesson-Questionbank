@@ -1,0 +1,350 @@
+/* ==================== 移动端适配样式 - 简化版 ==================== */
+
+/* 移动端菜单按钮 */
+.mobile-menu-btn {
+    display: none;
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 1001;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.mobile-menu-btn.active {
+    background: var(--danger-color);
+}
+
+/* 侧边栏遮罩 */
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+/* 本地存储模式指示器 */
+.storage-mode-badge {
+    display: none;
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 100;
+    padding: 6px 12px;
+    background: var(--warning-color);
+    color: white;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+body.remote-mode .storage-mode-badge {
+    display: block;
+}
+
+/* 隐藏远程用户的管理功能 */
+body.remote-mode .nav-item[data-page="import"],
+body.remote-mode .nav-item[data-page="settings"],
+body.remote-mode .import-btn {
+    display: none !important;
+}
+
+body.remote-mode .bank-actions .btn-danger,
+body.remote-mode .question-item .btn-danger {
+    display: none !important;
+}
+
+/* ==================== 平板端 (768px - 1024px) ==================== */
+@media screen and (max-width: 1024px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .practice-layout {
+        flex-direction: column;
+    }
+    
+    .side-panels {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    
+    .side-panel {
+        flex: 1;
+        min-width: 280px;
+    }
+}
+
+/* ==================== 手机端 (小于768px) ==================== */
+@media screen and (max-width: 768px) {
+    /* 显示菜单按钮 */
+    .mobile-menu-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* 侧边栏 */
+    .sidebar {
+        position: fixed;
+        left: -250px;
+        width: 250px;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        box-shadow: 2px 0 15px rgba(0, 0, 0, 0.2);
+        padding: 20px 0;
+    }
+    
+    .sidebar.open {
+        left: 0;
+    }
+    
+    .sidebar .logo span,
+    .sidebar .nav-item span {
+        display: inline !important;
+    }
+    
+    .sidebar .logo {
+        padding: 0 20px 30px;
+        justify-content: flex-start;
+    }
+    
+    .sidebar .nav-item {
+        justify-content: flex-start;
+        padding: 15px 20px;
+    }
+    
+    /* 主内容区 */
+    .main-content {
+        margin-left: 0;
+        padding: 70px 15px 20px;
+    }
+    
+    /* 页面标题 */
+    .page h1 {
+        font-size: 22px;
+        margin-bottom: 20px;
+    }
+    
+    /* 统计卡片 */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .stat-card {
+        padding: 15px;
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+    
+    .stat-icon {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+    }
+    
+    .stat-label {
+        font-size: 12px;
+    }
+    
+    /* 快速操作 */
+    .quick-actions {
+        padding: 15px;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .action-buttons .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* 章节统计 */
+    .chapter-stats {
+        padding: 15px;
+    }
+    
+    .chapter-list {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    /* 刷题页面 */
+    .practice-page-header {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .practice-header-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .practice-layout {
+        flex-direction: column;
+    }
+    
+    .practice-main {
+        padding: 15px;
+    }
+    
+    /* 设置卡片 */
+    .settings-row-top,
+    .settings-row-bottom {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .settings-card {
+        padding: 15px;
+    }
+    
+    /* 题目显示 */
+    .question-card {
+        padding: 15px;
+    }
+    
+    .question-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .question-tags {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .question-content {
+        font-size: 15px;
+        line-height: 1.7;
+    }
+    
+    /* 选项按钮 */
+    .option-btn {
+        padding: 14px 16px;
+        font-size: 14px;
+        min-height: 50px;
+    }
+    
+    .option-item {
+        padding: 12px;
+        font-size: 14px;
+    }
+    
+    /* 答题操作 */
+    .practice-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .practice-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* 题库管理 */
+    .bank-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .bank-info {
+        margin-bottom: 10px;
+    }
+    
+    .bank-stats {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .bank-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .bank-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* 开始刷题按钮 */
+    .practice-start-btn {
+        width: 100%;
+        padding: 15px 30px;
+        font-size: 16px;
+    }
+    
+    /* 排行榜 */
+    .ranking-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .ranking-info {
+        width: 100%;
+    }
+    
+    /* 弹窗 */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        margin: 10px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    /* 存储模式标识 */
+    .storage-mode-badge {
+        top: 15px;
+        right: 70px;
+        font-size: 11px;
+        padding: 5px 10px;
+    }
+    
+    /* 侧边面板 */
+    .side-panels {
+        display: none;
+    }
+}
+
+/* ==================== 小屏幕手机 (小于480px) ==================== */
+@media screen and (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-card {
+        flex-direction: row;
+        text-align: left;
+    }
+    
+    .modal-content {
+        width: 100%;
+        margin: 0;
+        border-radius: 0;
+        min-height: 100vh;
+    }
+}

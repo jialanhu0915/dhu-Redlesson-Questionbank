@@ -1226,29 +1226,12 @@ select.form-control {
 }
 
 /* ==================== 响应式 ==================== */
+/* 注意：移动端样式主要在 mobile.css 中定义 */
 @media (max-width: 768px) {
-    .sidebar {
-        width: 60px;
-        padding: 15px 0;
-    }
-
-    .logo span,
-    .nav-item span {
-        display: none;
-    }
-
-    .logo {
-        justify-content: center;
-        padding: 0 0 20px;
-    }
-
-    .nav-item {
-        justify-content: center;
-        padding: 15px;
-    }
+    /* 侧边栏在移动端由 mobile.css 控制，这里不做修改 */
 
     .main-content {
-        margin-left: 60px;
+        margin-left: 0;
         padding: 20px;
     }
 

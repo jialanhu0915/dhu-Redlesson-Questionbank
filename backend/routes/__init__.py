@@ -10,8 +10,9 @@ from .rankings import rankings_bp
 from .wrongbook import wrongbook_bp
 from .progress import progress_bp
 from .config import config_bp
+from .client import client_bp
 
 __all__ = [
     'banks_bp', 'questions_bp', 'practice_bp', 'stats_bp',
-    'rankings_bp', 'wrongbook_bp', 'progress_bp', 'config_bp'
+    'rankings_bp', 'wrongbook_bp', 'progress_bp', 'config_bp', 'client_bp'
 ]

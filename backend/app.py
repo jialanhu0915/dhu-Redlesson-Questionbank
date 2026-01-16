@@ -38,7 +38,7 @@ from flask_cors import CORS
 from backend.config import load_config, get_data_path
 from backend.routes import (
     banks_bp, questions_bp, practice_bp, stats_bp,
-    rankings_bp, wrongbook_bp, progress_bp, config_bp
+    rankings_bp, wrongbook_bp, progress_bp, config_bp, client_bp
 )
 
 # 创建Flask应用
@@ -54,6 +54,7 @@ app.register_blueprint(stats_bp)
 app.register_blueprint(rankings_bp)
 app.register_blueprint(wrongbook_bp)
 app.register_blueprint(progress_bp)
+app.register_blueprint(client_bp)
 
 
 # ==================== 健康检查API ====================
