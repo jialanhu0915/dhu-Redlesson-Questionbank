@@ -16,13 +16,18 @@ def get_random_questions():
     
     支持参数：
     - bank: 题库名称
+    - chapter: 章节名称
     - type: 题型(single/multi)
     - count: 总题目数量
     - single_count: 单选题数量
     - multi_count: 多选题数量
     """
     bank = request.args.get('bank', '')
-    questions = QuestionsModel.get_questions(bank=bank if bank else None)
+    chapter = request.args.get('chapter', '')
+    questions = QuestionsModel.get_questions(
+        bank=bank if bank else None,
+        chapter=chapter if chapter else None
+    )
     
     # 分离单选和多选题
     single_questions = [q for q in questions if q.get('type') == 'single']
