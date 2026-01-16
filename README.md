@@ -1,7 +1,7 @@
 # DHU 红课题库刷题系统
 
 基于 Web 的题库刷题系统，支持多格式题库导入、多种练习模式，可在局域网内多设备访问。
-（当前仅测试2025-2026第一学期习概/毛概/思修/近代史题库）
+（当前仅测试 2025-2026 第一学期习概/毛概/思修/近代史题库）
 
 ## 功能概述
 
@@ -16,40 +16,15 @@
 ## 系统架构
 
 ```mermaid
-flowchart TB
-    subgraph Client["客户端"]
-        A1["本机访问<br/>localhost"]
-        A2["局域网访问<br/>192.168.x.x"]
-        A3["热点访问<br/>192.168.137.1"]
-    end
-
-    subgraph Frontend["前端 (HTML/CSS/JS)"]
-        F1[首页]
-        F2[题库管理]
-        F3[刷题练习]
-        F4[错题本]
-        F5[排行榜]
-    end
-
-    subgraph Backend["后端 (Flask)"]
-        B1[banks]
-        B2[practice]
-        B3[wrongbook]
-        B4[rankings]
-        B5[progress]
-    end
-
-    subgraph Data["数据层 (JSON)"]
-        D1[(questions.json)]
-        D2[(progress.json)]
-        D3[(rankings.json)]
-        D4[(wrongbook.json)]
-    end
-
-    Client --> Frontend
-    Frontend -->|REST API| Backend
-    Backend --> Data
+flowchart LR
+    A[客户端] -->|HTTP| B[Frontend<br/>HTML/CSS/JS]
+    B -->|REST API| C[Backend<br/>Flask]
+    C --> D[(Data<br/>JSON)]
 ```
+
+    Backend --> Data
+
+````
 
 ## 快速开始
 
@@ -61,7 +36,7 @@ pip install -r requirements.txt
 
 # 启动服务
 python main.py
-```
+````
 
 浏览器自动打开 http://localhost:50000
 

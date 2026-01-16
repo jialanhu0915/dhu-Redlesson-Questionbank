@@ -251,35 +251,53 @@ function handleProgress(url, options) {
     var progress = JSON.parse(localStorage.getItem('quiz_progress') || '[]');
     
     if (method === 'GET') {
-        return mockResponse({ success: true, progress: progress });
+        // 检查是否请求单个进度
+        var urlParts = url.split('/');
+        var lastPart = urlParts[urlParts.length - 1].split('?')[0];
+        if (lastPart && lastPart !== 'progress' && lastPart.length > 0) {
+            // 请求单个进度
+            var item = null;
+            for (var i = 0; i < progress.length; i++) {
+                if (progress[i].id === lastPart) {
+                    item = progress[i];
+                    break;
+                }
+            }
+            return mockResponse({ success: true, progress: item });
+        }
+        // 返回进度列表，注意字段名是 progress_list
+        return mockResponse({ success: true, progress_list: progress });
     }
     
     if (method === 'POST') {
         var body = JSON.parse(options.body);
+        var progressId = body.progress_id || body.id || Date.now().toString();
         var newProgress = {
-            id: body.id || Date.now().toString(),
-            bank_name: body.bank_name || '混合题库',
+            id: progressId,
+            bank: body.bank || body.bank_name || '全部',
+            chapter: body.chapter || '',
             mode: body.mode || 'random',
             current_index: body.current_index || 0,
             total: body.total || 0,
             correct: body.correct || 0,
             wrong: body.wrong || 0,
             elapsed_time: body.elapsed_time || 0,
-            questions: body.questions || [],
+            remaining_time: body.remaining_time || 0,
+            question_ids: body.question_ids || [],
             question_results: body.question_results || [],
             save_time: new Date().toLocaleString('zh-CN')
         };
         
         var idx = -1;
         for (var i = 0; i < progress.length; i++) {
-            if (progress[i].id === body.id) { idx = i; break; }
+            if (progress[i].id === progressId) { idx = i; break; }
         }
         if (idx >= 0) progress[idx] = newProgress;
         else progress.unshift(newProgress);
         if (progress.length > 20) progress.length = 20;
         
         localStorage.setItem('quiz_progress', JSON.stringify(progress));
-        return mockResponse({ success: true, id: newProgress.id, message: '进度已保存' });
+        return mockResponse({ success: true, progress: newProgress, message: '进度已保存' });
     }
     
     if (method === 'DELETE') {

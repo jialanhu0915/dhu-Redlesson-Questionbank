@@ -837,7 +837,12 @@ async function startPractice(examMode = false) {
             document.getElementById('practice-area').style.display = 'block';
             document.getElementById('practice-result').style.display = 'none';
             document.getElementById('practice-header-info').style.display = 'flex';
-            document.getElementById('question-nav-panel').style.display = 'block';
+            
+            // 显示并展开答题卡
+            const navPanel = document.getElementById('question-nav-panel');
+            navPanel.style.display = 'block';
+            navPanel.classList.remove('collapsed');
+            navPanel.classList.add('expanded');
             
             // 进入刷题后折叠排行榜面板
             document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
@@ -1957,7 +1962,12 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     document.getElementById('practice-area').style.display = 'block';
     document.getElementById('practice-result').style.display = 'none';
     document.getElementById('practice-header-info').style.display = 'flex';
-    document.getElementById('question-nav-panel').style.display = 'block';
+    
+    // 显示并展开答题卡
+    const navPanel = document.getElementById('question-nav-panel');
+    navPanel.style.display = 'block';
+    navPanel.classList.remove('collapsed');
+    navPanel.classList.add('expanded');
     
     // 进入刷题后折叠排行榜面板
     document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
@@ -2312,7 +2322,12 @@ async function loadProgress(progressId) {
                 document.getElementById('practice-area').style.display = 'block';
                 document.getElementById('practice-result').style.display = 'none';
                 document.getElementById('practice-header-info').style.display = 'flex';
-                document.getElementById('question-nav-panel').style.display = 'block';
+                
+                // 显示并展开答题卡
+                const navPanel = document.getElementById('question-nav-panel');
+                navPanel.style.display = 'block';
+                navPanel.classList.remove('collapsed');
+                navPanel.classList.add('expanded');
                 
                 // 进入刷题后折叠排行榜面板
                 document.getElementById('ranking-panel-wrapper').classList.add('collapsed');

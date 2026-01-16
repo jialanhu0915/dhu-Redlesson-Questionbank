@@ -324,9 +324,84 @@ body.remote-mode .question-item .btn-danger {
         padding: 5px 10px;
     }
     
-    /* 侧边面板 */
+    /* 侧边面板 - 移动端改为纵向排列 */
     .side-panels {
-        display: none;
+        display: flex !important;
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+        margin-top: 15px;
+        position: static;
+        max-height: none;
+    }
+    
+    .side-panel {
+        width: 100%;
+    }
+    
+    /* 答题卡样式 - 显示由JS控制 */
+    #question-nav-panel {
+        order: -1; /* 让答题卡在最前面显示 */
+    }
+    
+    /* 刷题时确保答题卡展开可见 */
+    #question-nav-panel.expanded .panel-content {
+        display: block !important;
+        max-height: 250px !important;
+        opacity: 1 !important;
+        overflow-y: auto !important;
+        padding: 10px !important;
+    }
+    
+    /* 答题卡内容区默认样式 */
+    #question-nav-panel .panel-content {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+    
+    /* 折叠面板样式优化 */
+    .collapsible-panel .panel-header {
+        padding: 12px 15px;
+    }
+    
+    .collapsible-panel .panel-content {
+        padding: 10px;
+    }
+    
+    /* 排行榜列表优化 */
+    .ranking-item {
+        padding: 10px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .ranking-info {
+        width: 100%;
+    }
+    
+    /* 进度列表优化 */
+    .progress-item {
+        padding: 10px;
+    }
+    
+    /* 答题卡在移动端优化 */
+    .question-nav-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    
+    .nav-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+    }
+    
+    /* 确保答题卡面板显示 */
+    #question-nav-panel .panel-content {
+        max-height: 200px;
+        overflow-y: auto;
     }
 }
 
@@ -346,5 +421,12 @@ body.remote-mode .question-item .btn-danger {
         margin: 0;
         border-radius: 0;
         min-height: 100vh;
+    }
+    
+    /* 答题卡更小屏幕优化 */
+    .nav-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 11px;
     }
 }
