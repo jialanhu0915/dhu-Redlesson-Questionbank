@@ -1393,7 +1393,8 @@ function calculateExamResults() {
     
     questionResults.forEach((result, index) => {
         const question = practiceQuestions[index];
-        const correctAnswer = question.answer || [];
+        // 使用打乱后的答案（如果有），否则使用原始答案
+        const correctAnswer = question.shuffledAnswer || question.answer || [];
         
         if (result.answered && result.userAnswer.length > 0) {
             // 判断答案是否正确

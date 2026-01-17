@@ -209,10 +209,8 @@
             else if (apiPath.match(/^\/api\/practice\/sequence/)) {
                 const urlParams = new URL(url, window.location.origin).searchParams;
                 const bankName = urlParams.get('bank');
-                const start = parseInt(urlParams.get('start') || '0');
-                const singleCount = parseInt(urlParams.get('single_count') || '0');
-                const multiCount = parseInt(urlParams.get('multi_count') || '0');
                 const chapter = urlParams.get('chapter');
+                const shuffle = urlParams.get('shuffle') === 'true';
                 
                 let allQuestions = bankName ? Questions.getByBank(bankName) : Questions.getAllQuestions();
                 
@@ -222,16 +220,19 @@
                 }
                 
                 // 分离单选和多选
-                const singles = allQuestions.filter(q => q.type === 'single');
-                const multis = allQuestions.filter(q => q.type === 'multi');
+                let singles = allQuestions.filter(q => q.type === 'single');
+                let multis = allQuestions.filter(q => q.type === 'multi');
                 
-                // 取指定数量
-                const selectedSingles = singles.slice(start, start + singleCount);
-                const selectedMultis = multis.slice(0, multiCount);
+                // 如果需要打乱顺序
+                if (shuffle) {
+                    singles = [...singles].sort(() => Math.random() - 0.5);
+                    multis = [...multis].sort(() => Math.random() - 0.5);
+                }
                 
                 result = { 
                     success: true,
-                    questions: [...selectedSingles, ...selectedMultis]
+                    questions: [...singles, ...multis],
+                    total: singles.length + multis.length
                 };
             }
             
