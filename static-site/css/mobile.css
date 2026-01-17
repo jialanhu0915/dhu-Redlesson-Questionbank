@@ -118,7 +118,7 @@ body.remote-mode .question-item .btn-danger {
     
     .side-panel {
         flex: none;
-        width: 270px;
+        width: 100%;
     }
 }
 

@@ -6,6 +6,7 @@
 
 import re
 import os
+from datetime import datetime
 from docx import Document
 from collections import OrderedDict
 
@@ -16,6 +17,162 @@ try:
     HAS_WIN32COM = True
 except ImportError:
     HAS_WIN32COM = False
+
+
+# 题库编号映射表 (可以在config.json中配置扩展)
+BANK_CODE_MAP = {
+    '毛泽东思想和中国特色社会主义理论体系概论': '01',
+    '毛概': '01',
+    '习近平新时代中国特色社会主义思想概论': '02',
+    '习思想': '02',
+    '思想道德与法治': '03',
+    '思修': '03',
+    '中国近代史纲要': '04',
+    '纲要': '04',
+    '近代史': '04',
+    '马克思主义基本原理': '05',
+    '马原': '05',
+    '形势与政策': '06',
+}
+
+
+def get_bank_code(bank_name):
+    """获取题库编号"""
+    # 先尝试精确匹配
+    if bank_name in BANK_CODE_MAP:
+        return BANK_CODE_MAP[bank_name]
+    # 再尝试模糊匹配
+    for key, code in BANK_CODE_MAP.items():
+        if key in bank_name or bank_name in key:
+            return code
+    # 默认返回99
+    return '99'
+
+
+def parse_semester_from_filename(filename):
+    """
+    从文件名解析学年学期信息
+    支持格式: 2025-2026-1, 2025-2026（一）, 2025年秋季学期 等
+    
+    返回: (year_code, semester_code, semester_display)
+    - year_code: 年份后两位，如 "25"
+    - semester_code: 学期编号，"01" 或 "02"
+    - semester_display: 显示文本，如 "2025-2026学年第一学期"
+    """
+    import re
+    
+    # 匹配 2025-2026-1 或 2025-2026（一）格式
+    match = re.search(r'(\d{4})-(\d{4})[-—]?[（(]?([一二12])[）)]?', filename)
+    if match:
+        start_year = match.group(1)
+        end_year = match.group(2)
+        semester = match.group(3)
+        
+        year_code = start_year[2:]  # 取前一年的后两位，如2025->25
+        if semester in ['一', '1']:
+            semester_code = '01'
+            semester_text = '第一学期'
+        else:
+            semester_code = '02'
+            semester_text = '第二学期'
+        
+        semester_display = f"{start_year}-{end_year}学年{semester_text}"
+        return year_code, semester_code, semester_display
+    
+    # 匹配 2025年秋季学期 或 2025年春季学期 格式
+    match = re.search(r'(\d{4})年(秋季|春季|第一|第二)学期', filename)
+    if match:
+        year = match.group(1)
+        season = match.group(2)
+        
+        if season in ['秋季', '第一']:
+            year_code = year[2:]
+            semester_code = '01'
+            next_year = str(int(year) + 1)
+            semester_display = f"{year}-{next_year}学年第一学期"
+        else:
+            # 春季学期属于上一学年的第二学期
+            year_code = str(int(year) - 1)[2:]
+            semester_code = '02'
+            prev_year = str(int(year) - 1)
+            semester_display = f"{prev_year}-{year}学年第二学期"
+        
+        return year_code, semester_code, semester_display
+    
+    # 匹配单独的年份，如 2025年4月
+    match = re.search(r'(\d{4})年(\d{1,2})月', filename)
+    if match:
+        year = match.group(1)
+        month = int(match.group(2))
+        
+        # 根据月份判断学期
+        if month >= 9 or month <= 2:
+            # 第一学期 (9月-次年2月)
+            if month >= 9:
+                year_code = year[2:]
+                next_year = str(int(year) + 1)
+                semester_display = f"{year}-{next_year}学年第一学期"
+            else:
+                prev_year = str(int(year) - 1)
+                year_code = prev_year[2:]
+                semester_display = f"{prev_year}-{year}学年第一学期"
+            semester_code = '01'
+        else:
+            # 第二学期 (3月-8月)
+            prev_year = str(int(year) - 1)
+            year_code = prev_year[2:]
+            semester_code = '02'
+            semester_display = f"{prev_year}-{year}学年第二学期"
+        
+        return year_code, semester_code, semester_display
+    
+    # 默认使用当前日期
+    now = datetime.now()
+    year_code = now.strftime('%y')
+    month = now.month
+    
+    if month >= 9 or month <= 2:
+        semester_code = '01'
+        if month >= 9:
+            semester_display = f"{now.year}-{now.year+1}学年第一学期"
+        else:
+            semester_display = f"{now.year-1}-{now.year}学年第一学期"
+    else:
+        semester_code = '02'
+        semester_display = f"{now.year-1}-{now.year}学年第二学期"
+    
+    return year_code, semester_code, semester_display
+
+
+def get_semester_code():
+    """获取学期编号 - 第一学期01，第二学期02（用于默认情况）"""
+    month = datetime.now().month
+    # 9-2月为第一学期，3-8月为第二学期
+    if month >= 9 or month <= 2:
+        return '01'
+    else:
+        return '02'
+
+
+def generate_question_id(bank_name, question_index, year_code=None, semester_code=None):
+    """
+    生成题目编号
+    格式: YYSSTBBB
+    - YY: 年份后两位 (如25代表2025年)
+    - SS: 学期 (01=第一学期, 02=第二学期)
+    - T: 题库编号 (01=毛概, 02=习思想, 03=思修, 04=纲要...)
+    - BBB: 题目序号 (001-999)
+    
+    例如: 250101001 表示 25年第一学期毛概第1题
+    """
+    if year_code is None:
+        year_code = datetime.now().strftime('%y')  # 两位年份
+    if semester_code is None:
+        semester_code = get_semester_code()
+    bank_code = get_bank_code(bank_name)
+    question_num = str(question_index + 1).zfill(3)  # 从001开始
+    
+    return f"{year_code}{semester_code}{bank_code}{question_num}"
 
 
 class QuestionParser:
@@ -670,9 +827,16 @@ class QuestionParser:
         if current_question and (current_question.get('options') or current_question.get('question')):
             questions.append(current_question)
         
-        # 后处理
+        # 从文件名解析学期信息
+        filename = os.path.basename(file_path)
+        year_code, semester_code, semester_display = parse_semester_from_filename(filename)
+        
+        # 后处理 - 生成规范的题目编号
         for idx, q in enumerate(questions):
-            q['id'] = f"{abs(hash(file_path))}_{idx}"
+            # 使用新的编号系统生成ID（带学期信息）
+            q['id'] = generate_question_id(bank_name or extracted_name, idx, year_code, semester_code)
+            # 保留旧ID作为备用（用于兼容已有数据）
+            q['legacy_id'] = f"{abs(hash(file_path))}_{idx}"
             # 确保答案是列表
             if not q['answer']:
                 q['answer'] = []
@@ -680,7 +844,8 @@ class QuestionParser:
             if len(q['answer']) > 1:
                 q['type'] = 'multi'
         
-        return questions, extracted_name
+        # 返回题目列表、题库名称和学期信息
+        return questions, extracted_name, semester_display
 
 
 def parse_file(file_path, bank_name=None):
@@ -692,11 +857,16 @@ def parse_file(file_path, bank_name=None):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
-        questions, extracted_name = parse_file(sys.argv[1])
+        result = parse_file(sys.argv[1])
+        questions = result[0]
+        extracted_name = result[1]
+        semester_display = result[2] if len(result) > 2 else '未知学期'
         print(f"题库名称: {extracted_name}")
+        print(f"学期: {semester_display}")
         print(f"解析到 {len(questions)} 道题目")
         for q in questions[:5]:
-            print(f"\n题目: {q['question'][:50]}...")
+            print(f"\n题目ID: {q['id']}")
+            print(f"题目: {q['question'][:50]}...")
             print(f"类型: {'单选' if q['type'] == 'single' else '多选'}")
             print(f"选项: {list(q['options'].keys())}")
             print(f"答案: {q['answer']}")

@@ -39,28 +39,13 @@ function initMobile() {
     }
 }
 
-// 检测是否为本地客户端
+// 检测是否为本地客户端（静态版本始终为远程模式）
 function checkClientType() {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/client/info', true);
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            try {
-                var data = JSON.parse(xhr.responseText);
-                if (data.success) {
-                    isLocalClient = data.is_local;
-                    if (!isLocalClient) {
-                        document.body.className += ' remote-mode';
-                        showRemoteBadge();
-                        setupLocalStorage();
-                    }
-                }
-            } catch (e) {
-                console.error('解析客户端信息失败', e);
-            }
-        }
-    };
-    xhr.send();
+    // 静态版本始终设置为远程模式，使用本地存储
+    isLocalClient = false;
+    document.body.className += ' remote-mode';
+    showRemoteBadge();
+    setupLocalStorage();
 }
 
 // 显示远程模式标识

@@ -88,8 +88,11 @@ def import_questions():
         if ext in ['.doc', '.docx']:
             txt_file_path = convert_word_to_txt(file_path)
         
-        # 解析题目
-        questions, extracted_name = parse_file(txt_file_path, bank_name if bank_name else None)
+        # 解析题目（返回三个值：题目列表、题库名称、学期信息）
+        parse_result = parse_file(txt_file_path, bank_name if bank_name else None)
+        questions = parse_result[0]
+        extracted_name = parse_result[1]
+        semester_display = parse_result[2] if len(parse_result) > 2 else ''
         
         # 如果没有指定题库名称，使用提取的名称
         if not bank_name:
@@ -104,10 +107,11 @@ def import_questions():
         # 加载现有数据
         data = QuestionsModel.load()
         
-        # 添加题库信息
+        # 添加题库信息（包含学期）
         data['banks'][bank_name] = {
             "source_file": original_filename,
-            "import_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "import_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "semester": semester_display  # 新增学期字段
         }
         
         # 移除同名题库的旧题目
