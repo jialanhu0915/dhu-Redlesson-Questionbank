@@ -2392,6 +2392,8 @@ async function loadProgress(progressId) {
                 return q;
             });
             
+            console.log('[loadProgress] 第一题乱序状态:', practiceQuestions[0]?.shuffledOptions ? '有乱序' : '无乱序');
+            
             currentQuestionIndex = progress.current_index || 0;
             correctCount = progress.correct || 0;
             wrongCount = progress.wrong || 0;

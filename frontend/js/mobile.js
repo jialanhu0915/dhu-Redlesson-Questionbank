@@ -357,6 +357,7 @@ function handleProgress(url, options) {
             elapsed_time: body.elapsed_time || 0,
             remaining_time: body.remaining_time || 0,
             question_ids: body.question_ids || [],
+            shuffle_map: body.shuffle_map || {},  // 乱序映射
             question_results: body.question_results || [],
             save_time: new Date().toLocaleString('zh-CN')
         };

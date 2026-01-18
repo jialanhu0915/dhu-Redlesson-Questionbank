@@ -58,7 +58,9 @@ const Progress = {
      */
     load(progressId) {
         const data = Storage.getProgress();
-        const progress = (data.progress || []).find(p => p.id === progressId);
+        // 确保 ID 类型一致（字符串比较）
+        const targetId = String(progressId);
+        const progress = (data.progress || []).find(p => String(p.id) === targetId);
         if (progress) {
             return { success: true, progress: progress };
         }
