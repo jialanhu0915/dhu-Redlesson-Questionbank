@@ -45,7 +45,11 @@ function createWindow() {
     });
 
     // 加载前端
-    mainWindow.loadFile(path.join(__dirname, '..', 'frontend', 'index.html'));
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const frontendPath = isDevelopment
+        ? path.join(__dirname, '..', 'frontend', 'index.html')
+        : path.join(__dirname, 'frontend', 'index.html');
+    mainWindow.loadFile(frontendPath);
 
     // 开发模式打开 DevTools
     if (process.env.NODE_ENV === 'development') {
@@ -81,9 +85,18 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-    // 停止 Python 进程
-    if (pythonProcess) {
-        pythonProcess.kill();
+    // 优雅关闭 Python 进程
+    if (pythonProcess && !pythonProcess.killed) {
+        try {
+            pythonProcess.stdin.write(JSON.stringify({ action: 'exit' }) + '\n');
+            setTimeout(() => {
+                if (pythonProcess && !pythonProcess.killed) {
+                    pythonProcess.kill();
+                }
+            }, 1000); // 等待 1 秒让 Python 清理
+        } catch (err) {
+            // 忽略写入错误
+        }
     }
 
     if (process.platform !== 'darwin') {
@@ -93,8 +106,18 @@ app.on('window-all-closed', () => {
 
 // 启动 Python 进程
 function startPythonProcess() {
-    // 优先使用嵌入式 Python
-    const embeddedPythonDir = path.join(__dirname, 'python');
+    // 根据 NODE_ENV 确定嵌入式 Python 目录
+    let embeddedPythonDir;
+
+    if (process.env.NODE_ENV === 'development') {
+        // 开发模式：electron/python/
+        embeddedPythonDir = path.join(__dirname, 'python');
+    } else {
+        // 生产模式：使用 process.resourcesPath 构建绝对路径
+        // process.resourcesPath 在打包后指向 resources/ 目录
+        embeddedPythonDir = path.join(process.resourcesPath, 'app.asar.unpacked', 'python');
+    }
+
     const embeddedPython = process.platform === 'win32'
         ? path.join(embeddedPythonDir, 'python.exe')
         : path.join(embeddedPythonDir, 'bin', 'python3');
@@ -117,27 +140,32 @@ function startPythonProcess() {
     }
 
     // Python 脚本用于 Word 解析
-    const pythonScript = path.join(__dirname, 'python_parser.py');
+    const pythonScript = process.env.NODE_ENV === 'development'
+        ? path.join(__dirname, 'python_parser.py')
+        : path.join(process.resourcesPath, 'app.asar.unpacked', 'python_parser.py');
 
     if (fs.existsSync(pythonScript)) {
+        console.log('✅ Python 脚本找到:', pythonScript);
+
+        // 设置工作目录（Python 脚本所在目录）
+        const scriptDir = process.env.NODE_ENV === 'development'
+            ? __dirname
+            : path.join(process.resourcesPath, 'app.asar.unpacked');
+
         // 设置环境变量
-        const env = {
-            ...process.env
-        };
+        const env = { ...process.env };
 
         // 如果使用嵌入式 Python，设置 PYTHONPATH
         if (useEmbedded) {
-            const backendDir = path.join(__dirname, '..', 'backend');
             const libDir = process.platform === 'win32'
                 ? path.join(embeddedPythonDir, 'Lib')
                 : path.join(embeddedPythonDir, 'lib');
-
-            env.PYTHONPATH = [backendDir, libDir].join(path.delimiter);
+            env.PYTHONPATH = [scriptDir, libDir].join(path.delimiter);
         }
 
         pythonProcess = spawn(pythonPath, [pythonScript], {
             stdio: ['pipe', 'pipe', 'pipe'],
-            cwd: path.join(__dirname, '..'),
+            cwd: scriptDir,
             env: env
         });
 
@@ -149,6 +177,10 @@ function startPythonProcess() {
         pythonProcess.stderr.on('data', (data) => {
             const errorMsg = data.toString();
             console.error('Python stderr:', errorMsg);
+        });
+
+        pythonProcess.on('exit', (code, signal) => {
+            console.log(`❌ Python 进程已退出，代码: ${code}, 信号: ${signal}`);
         });
     } else {
         console.error('❌ Python 脚本不存在:', pythonScript);
@@ -597,12 +629,36 @@ ipcMain.handle('import-data', async (event, filePath) => {
     }
 });
 
+// 检查 Python 进程是否存活
+function isPythonProcessAlive() {
+    return pythonProcess && !pythonProcess.killed && pythonProcess.exitCode === null;
+}
+
+// 重启 Python 进程
+function restartPythonProcess() {
+    console.log('🔄 重启 Python 进程...');
+    if (pythonProcess && !pythonProcess.killed) {
+        pythonProcess.kill();
+    }
+    startPythonProcess();
+}
+
 // 使用 Python 解析器
 function parseWithPython(filePath) {
     return new Promise((resolve, reject) => {
-        if (!pythonProcess) {
-            console.error('❌ Python 进程未运行');
-            resolve({ success: false, error: 'Python 进程未运行' });
+        // 检查进程状态
+        if (!isPythonProcessAlive()) {
+            console.error('❌ Python 进程未运行，尝试重启...');
+            restartPythonProcess();
+            // 等待进程启动
+            setTimeout(() => {
+                if (!isPythonProcessAlive()) {
+                    reject(new Error('Python 进程启动失败'));
+                    return;
+                }
+                // 递归调用解析
+                parseWithPython(filePath).then(resolve).catch(reject);
+            }, 1000);
             return;
         }
 
@@ -654,6 +710,8 @@ function parseWithPython(filePath) {
             pythonProcess.stdin.write(input + '\n', (err) => {
                 if (err) {
                     console.error('❌ 发送命令失败:', err);
+                    pythonProcess.stdout.removeListener('data', onData);
+                    clearTimeout(timeout);
                     reject(new Error('发送命令失败: ' + err.message));
                 } else {
                     console.log('✅ 命令已发送');
@@ -661,6 +719,8 @@ function parseWithPython(filePath) {
             });
         } catch (err) {
             console.error('❌ 发送命令异常:', err);
+            pythonProcess.stdout.removeListener('data', onData);
+            clearTimeout(timeout);
             reject(new Error('发送命令异常: ' + err.message));
         }
     });

@@ -6,21 +6,33 @@ productName: 东华红课题库刷题系统
 
 directories:
   output: dist
-  buildResources: assets
+  buildResources: electron/assets
 
 files:
   - from: .
     filter:
+      - '**/*'
       - '!dist/**'
       - '!scripts/**'
-      - '!.gitignore'
       - '!.git/**'
       - '!.vscode/**'
-      - '!*.md'
-      - '!*.zip'
-      - '!python/test_imports.py'
+      - '!__pycache__/**'
+      - '!**/__pycache__/**'
+      - '!*.pyc'
+      - '!**/*.pyc'
+      - '!**/python/test_imports.py'
+  - from: ../frontend
+    to: frontend
+    filter:
+      - '**/*'
+      - '!node_modules/**'
 
 asar: true
+
+asarUnpack:
+  - python/**
+  - python_parser.py
+  - backend_parser.py
 
 win:
   target: nsis

@@ -26,8 +26,39 @@
     "appId": "com.dhu.quiz",
     "productName": "东华红课题库刷题系统",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "electron/assets"
     },
+    "files": [
+      "**/*",
+      "!**/dist/**",
+      "!**/scripts/**",
+      "!**/.git/**",
+      "!**/.vscode/**",
+      "!**/__pycache__/**",
+      "!**/*.pyc",
+      "!**/tests/**",
+      "!**/data/**",
+      "!**/uploads/**",
+      "!**/static-site/**",
+      "!**/.venv/**",
+      "!**/node_modules/**",
+      "!**/*.md",
+      "!**/*.zip",
+      "!**/*.bat",
+      "!AGENTS.md",
+      "!setup_firewall.bat",
+      "!防火墙开关.bat",
+      "!配置热点防火墙.bat",
+      "!**/python/test_imports.py",
+      "!**/backend/app.py",
+      "!**/backend/config.py",
+      "!**/backend/routes/**",
+      "!**/backend/models/**",
+      "!**/backend/utils.py",
+      "!**/backend/requirements.txt",
+      "!**/backend/__init__.py"
+    ],
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
     }

@@ -9,11 +9,34 @@ import sys
 import json
 import os
 
-# 添加 backend 目录到路径
-backend_dir = os.path.join(os.path.dirname(__file__), "..", "backend")
-sys.path.insert(0, backend_dir)
+# 添加脚本目录到 sys.path 开头（解决打包后导入失败问题）
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
 
-from parser import parse_file
+# 显式添加 site-packages (解决 Windows 嵌入式 Python 忽略 PYTHONPATH 的问题)
+# 在打包后的结构中:
+# script_dir/ (含有 python_parser.py)
+#   python/
+#     Lib/
+#       site-packages/
+embedded_site_packages = os.path.join(script_dir, 'python', 'Lib', 'site-packages')
+if os.path.exists(embedded_site_packages):
+    if embedded_site_packages not in sys.path:
+        sys.path.insert(0, embedded_site_packages)
+    
+    # 同时添加 pip 安装的 .pth 文件路径支持 (如 win32com 等)
+    import site
+    site.addsitedir(embedded_site_packages)
+
+# 导入 parser 模块（直接导入当前目录的 backend_parser.py）
+try:
+    from backend_parser import parse_file
+except ImportError as e:
+    # 捕获导入错误并打印到 stderr (Electron 可以捕获)
+    sys.stderr.write(f"Error importing backend_parser or dependencies: {e}\n")
+    sys.stderr.write(f"sys.path: {sys.path}\n")
+    sys.exit(1)
 
 
 def parse_document(file_path):
@@ -39,25 +62,52 @@ def parse_document(file_path):
 
 def main():
     """
-    主函数：从 stdin 读取 JSON，处理后输出到 stdout
+    主函数：持续监听 stdin，处理多个解析请求
     """
-    # 读取输入
-    input_data = sys.stdin.read().strip()
+    # 持续监听循环
+    while True:
+        try:
+            # 读取一行输入（而不是 read()）
+            line = sys.stdin.readline()
 
-    if not input_data:
-        return
+            if not line:
+                # EOF 或连接断开，退出循环
+                break
 
-    try:
-        data = json.loads(input_data)
+            line = line.strip()
+            if not line:
+                continue
 
-        if data.get("action") == "parse":
-            file_path = data.get("file_path")
-            result = parse_document(file_path)
-            print(json.dumps(result, ensure_ascii=False), flush=True)
-        else:
-            print(json.dumps({"success": False, "error": "Unknown action"}), flush=True)
-    except Exception as e:
-        print(json.dumps({"success": False, "error": str(e)}), flush=True)
+            # 解析 JSON
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                print(
+                    json.dumps({"success": False, "error": "Invalid JSON"}), flush=True
+                )
+                continue
+
+            # 处理命令
+            if data.get("action") == "parse":
+                file_path = data.get("file_path")
+                result = parse_document(file_path)
+                print(json.dumps(result, ensure_ascii=False), flush=True)
+            elif data.get("action") == "exit":
+                # 退出命令
+                break
+            else:
+                print(
+                    json.dumps({"success": False, "error": "Unknown action"}),
+                    flush=True,
+                )
+
+        except Exception as e:
+            # 捕获所有异常，确保进程不会崩溃
+            print(json.dumps({"success": False, "error": str(e)}), flush=True)
+            # 打印到 stderr 便于调试
+            import traceback
+
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
