@@ -54,7 +54,7 @@ desktop.ini
 
 # 保留 requirements.txt
 !requirements.txt
-!backend/requirements.txt
+!platforms/web/requirements.txt
 
 # 临时文件
 tmp/
@@ -64,9 +64,27 @@ temp/
 
 # 测试文件
 tests/
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
 
 # Electron
-electron/node_modules/
-electron/python/
-electron/dist/
-electron/package-lock.json
+platforms/electron/node_modules/
+platforms/electron/python/
+platforms/electron/dist/
+platforms/electron/package-lock.json
+
+# Android
+platforms/android/node_modules/
+platforms/android/.gradle/
+platforms/android/android/app/build/
+platforms/android/android/build/
+
+# Web
+platforms/web/.venv/
+platforms/web/__pycache__/
+platforms/web/backend/__pycache__/
+platforms/web/backend/routes/__pycache__/
+platforms/web/backend/models/__pycache__/
