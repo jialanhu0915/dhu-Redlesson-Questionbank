@@ -115,94 +115,26 @@ pytest -v
 
 ```
 dhu-Redlesson-Questionbank/
-├── main.py                    # 主启动入口（Web版）
-├── config.json                # 配置文件
-├── requirements.txt           # Python依赖
-├── setup_firewall.bat         # 防火墙配置脚本（Windows）
-├── 防火墙开关.bat              # 防火墙开关脚本（Windows）
-├── 配置热点防火墙.bat          # 热点防火墙配置（Windows）
-├── backend/                   # 后端模块
-│   ├── __init__.py
-│   ├── app.py                # Flask应用入口
-│   ├── config.py             # 配置管理
-│   ├── parser.py             # 题目解析器(.doc/.docx/.txt)
-│   ├── utils.py              # 工具函数
-│   ├── requirements.txt      # 后端依赖
-│   ├── models/               # 数据模型
-│   │   ├── __init__.py
-│   │   ├── questions.py      # 题库模型
-│   │   ├── wrongbook.py      # 错题本模型
-│   │   ├── rankings.py       # 排行榜模型
-│   │   └── progress.py       # 进度模型
-│   └── routes/               # API路由
-│       ├── __init__.py
-│       ├── banks.py          # 题库管理API
-│       ├── questions.py      # 题目管理API
-│       ├── practice.py       # 刷题API
-│       ├── stats.py          # 统计API
-│       ├── rankings.py       # 排行榜API
-│       ├── wrongbook.py      # 错题本API
-│       ├── progress.py       # 进度API
-│       ├── config.py         # 配置API
-│       └── client.py         # 客户端信息API
-├── electron/                  # Electron桌面应用（待创建）
-│   ├── main.js               # Electron主进程入口
-│   ├── preload.js            # IPC预加载脚本
-│   ├── python_parser.py      # Python Word解析器
-│   ├── package.json          # Node.js依赖配置
-│   ├── models/               # Node.js数据模型
-│   │   └── index.js          # 数据模型实现
-│   ├── build/                # 打包配置
-│   │   ├── builder-win.yaml  # Windows打包配置
-│   │   └── builder-mac.yaml  # macOS打包配置
-│   └── assets/               # 资源文件
-│       ├── icon.ico          # Windows图标
-│       ├── icon.icns         # macOS图标
-│       └── icons/            # PWA图标
-├── frontend/                  # 前端文件
-│   ├── index.html            # 主页面
-│   ├── manifest.json         # PWA清单文件（待创建）
-│   ├── sw.js                # Service Worker（待创建）
-│   ├── css/                  # 样式文件
-│   │   ├── style.css         # 主样式
-│   │   └── mobile.css        # 移动端样式
-│   └── js/                   # JavaScript模块
-│       ├── app.js            # 主应用逻辑
-│       ├── mobile.js         # 移动端适配
-│       └── modules/          # 功能模块
-│           ├── index.js
-│           ├── core.js        # 核心功能
-│           ├── banks.js       # 题库管理
-│           ├── upload.js      # 文件上传
-│           ├── practice.js    # 练习模式
-│           ├── modes.js       # 各种模式
-│           ├── stats.js       # 统计
-│           ├── rankings.js    # 排行榜
-│           ├── wrongbook.js   # 错题本
-│           ├── progress.js    # 进度管理
-│           ├── settings.js    # 设置
-│           ├── state.js       # 状态管理
-│           └── utils.js       # 工具函数
-├── static-site/               # 静态部署版本（GitHub Pages）
-│   ├── index.html
-│   ├── README.md
-│   ├── export_data.py        # 数据导出脚本
-│   ├── data.json
-│   ├── css/
-│   ├── js/
-│   └── data/
-│       └── questions.json
-├── data/                      # 数据存储（运行时生成）
-│   ├── questions.json        # 题库数据
-│   ├── wrongbook.json        # 错题本
-│   ├── rankings.json         # 排行榜
-│   └── progress.json         # 进度数据
-├── tests/                     # 测试目录（待创建）
-│   ├── __init__.py
-│   ├── conftest.py           # pytest配置
-│   ├── test_parser.py       # 解析器测试
-│   ├── test_models.py        # 模型测试
-│   └── test_routes.py        # 路由测试
+├── platforms/                 # 多平台代码根目录
+│   ├── web/                   # Web版本 (Python Flask)
+│   │   ├── main.py           # 主启动入口
+│   │   ├── backend/          # Flask后端
+│   │   ├── frontend/         # Web前端
+│   │   └── static-site/      # 静态站点生成
+│   ├── electron/              # 桌面版本 (Electron)
+│   │   ├── main.js           # Electron主进程
+│   │   ├── preload.js        # IPC脚本
+│   │   ├── package.json
+│   │   └── build/            # 打包配置
+│   └── android/               # Android版本 (Capacitor)
+│       └── android/          # Native Android Project
+├── .github/                   # CI/CD配置
+│   └── workflows/
+│       ├── windows.yml       # Electron构建
+│       └── android.yml       # Android构建
+├── docs/                      # 项目文档
+├── data/                      # 运行时数据
+├── scripts/                   # 构建脚本
 └── AGENTS.md                  # 本文件
 ```
 
@@ -212,24 +144,16 @@ dhu-Redlesson-Questionbank/
 
 | 功能模块 | 文件路径 | 说明 |
 |---------|---------|------|
-| 主入口 | `main.py:1` | 启动Flask服务器，显示访问地址 |
-| Flask应用 | `backend/app.py:1` | 注册所有蓝图，配置CORS |
-| 题目解析 | `backend/parser.py:1` | 解析.doc/.docx/.txt题库文件 |
-| 题库模型 | `backend/models/questions.py:1` | 题库CRUD操作 |
-| 刷题API | `backend/routes/practice.py:1` | 随机/顺序/错题练习接口 |
-| 前端主逻辑 | `frontend/js/app.js:1` | 页面路由和主要逻辑 |
-| 练习模块 | `frontend/js/modules/practice.js:1` | 刷题核心逻辑（答题卡、计时器） |
-| 移动端适配 | `frontend/js/mobile.js:1` | 移动端优化 |
-| 静态导出 | `static-site/export_data.py:1` | 导出数据用于静态部署 |
-| 配置管理 | `backend/config.py:1` | 配置文件读写工具 |
-| 工具函数 | `backend/utils.py:1` | 通用工具函数 |
-| **Electron 桌面应用** | | |
-| 主进程入口 | `electron/main.js:1` | Electron 主进程（Node.js） |
-| IPC 预加载 | `electron/preload.js:1` | IPC 通信桥接 |
-| Python 解析器 | `electron/python_parser.py:1` | Word 文档解析（IPC 模式） |
-| Node.js 数据模型 | `electron/models/index.js:1` | 本地数据 CRUD 操作 |
-| Windows 打包配置 | `electron/build/builder-win.yaml:1` | NSIS 安装程序配置 |
-| macOS 打包配置 | `electron/build/builder-mac.yaml:1` | .dmg 镜像配置 |
+| Web主入口 | `platforms/web/main.py:1` | 启动Flask服务器 |
+| Flask应用 | `platforms/web/backend/app.py:1` | 后端核心配置 |
+| 题目解析 | `platforms/web/backend/parser.py:1` | Word/Txt解析器 |
+| 题库模型 | `platforms/web/backend/models/questions.py:1` | 题库CRUD |
+| 刷题API | `platforms/web/backend/routes/practice.py:1` | 练习逻辑API |
+| 前端主逻辑 | `platforms/web/frontend/js/app.js:1` | 页面路由和逻辑 |
+| 练习模块 | `platforms/web/frontend/js/modules/practice.js:1` | 答题核心逻辑 |
+| Electron主进程 | `platforms/electron/main.js:1` | 桌面端入口 |
+| Electron构建 | `platforms/electron/build/builder-win.yaml` | Windows打包配置 |
+| Android构建 | `.github/workflows/android.yml` | Android CI配置 |
 
 ---
 

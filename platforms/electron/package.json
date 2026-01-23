@@ -1,0 +1,68 @@
+{
+  "name": "dhu-quiz-app",
+  "version": "1.0.0",
+  "description": "东华红课题库刷题系统",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "set NODE_ENV=development&& electron .",
+    "build:win": "set ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/&& electron-builder --win --config build/builder-win.yaml",
+    "build:mac": "electron-builder --mac --config build/builder-mac.yaml",
+    "build:all": "npm run build:win && npm run build:mac",
+    "install-python": "node scripts/download-python.js",
+    "install-libs": "node scripts/install-python-libs.js",
+    "setup-python": "npm run install-python && npm run install-libs",
+    "test-python": "node scripts/test-python.js"
+  },
+  "dependencies": {
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
+    "adm-zip": "^0.5.14"
+  },
+  "build": {
+    "appId": "com.dhu.quiz",
+    "productName": "东华红课题库刷题系统",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!**/dist/**",
+      "!**/scripts/**",
+      "!**/.git/**",
+      "!**/.vscode/**",
+      "!**/__pycache__/**",
+      "!**/*.pyc",
+      "!**/tests/**",
+      "!**/data/**",
+      "!**/uploads/**",
+      "!**/static-site/**",
+      "!**/.venv/**",
+      "!**/node_modules/**",
+      "!**/*.md",
+      "!**/*.zip",
+      "!**/*.bat",
+      "!AGENTS.md",
+      "!setup_firewall.bat",
+      "!防火墙开关.bat",
+      "!配置热点防火墙.bat",
+      "!**/python/test_imports.py",
+      "!**/backend/app.py",
+      "!**/backend/config.py",
+      "!**/backend/routes/**",
+      "!**/backend/models/**",
+      "!**/backend/utils.py",
+      "!**/backend/requirements.txt",
+      "!**/backend/__init__.py"
+    ],
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
+    }
+  },
+  "author": "DHU",
+  "license": "MIT"
+}
