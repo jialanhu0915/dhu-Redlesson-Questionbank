@@ -37,6 +37,9 @@ pip install -r requirements.txt
 ### 运行服务
 
 ```bash
+# 进入 web 目录
+cd platforms/web
+
 # 启动主服务器（默认端口 50000）
 python main.py
 
@@ -47,6 +50,9 @@ python main.py
 ### 导出静态数据（用于 GitHub Pages 部署）
 
 ```bash
+# 进入 web 目录
+cd platforms/web
+
 # 导出题库数据到 static-site 目录
 python static-site/export_data.py
 ```
@@ -58,8 +64,10 @@ python static-site/export_data.py
 #### 环境设置
 
 ```bash
+# 进入 electron 目录
+cd platforms/electron
+
 # 安装 Node.js 依赖
-cd electron
 npm install
 
 # 验证安装
@@ -69,16 +77,20 @@ npm run start
 #### 开发模式运行
 
 ```bash
+# 进入 electron 目录
+cd platforms/electron
+
 # 开发模式运行（会自动打开 DevTools）
-cd electron
 npm run dev
 ```
 
 #### 打包命令
 
 ```bash
+# 进入 electron 目录
+cd platforms/electron
+
 # 打包 Windows 版本
-cd electron
 npm run build:win
 
 # 打包 macOS 版本
@@ -97,13 +109,14 @@ npm run build:all
 
 ```bash
 # 运行所有测试
+cd platforms/web
 pytest
 
 # 运行测试并显示覆盖率报告
-pytest --cov=backend --cov-report=html
+pytest --cov=platforms/web/backend --cov-report=html
 
 # 运行特定测试文件
-pytest tests/test_questions.py
+pytest platforms/web/tests/test_questions.py
 
 # 运行测试并显示详细输出
 pytest -v
@@ -289,7 +302,7 @@ D. 选项D
 
 ### 步骤 1: 安装测试依赖
 
-在 `requirements.txt` 中添加以下依赖：
+在 `platforms/web/requirements.txt` 中添加以下依赖：
 
 ```txt
 # Web 框架
@@ -312,6 +325,7 @@ pytest-mock>=3.11.0
 安装新依赖：
 
 ```bash
+cd platforms/web
 pip install -r requirements.txt
 ```
 
@@ -319,7 +333,7 @@ pip install -r requirements.txt
 
 ```bash
 # 创建 tests 目录
-mkdir tests
+mkdir platforms/web/tests
 ```
 
 ### 步骤 3: 创建测试配置文件
@@ -332,7 +346,7 @@ mkdir tests
 """
 ```
 
-创建 `tests/conftest.py`:
+创建 `platforms/web/tests/conftest.py`:
 
 ```python
 """
@@ -346,60 +360,14 @@ import json
 import tempfile
 
 # 确保backend目录在路径中
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
-from backend.app import app
-
-
-@pytest.fixture
-def client():
-    """
-    创建Flask测试客户端
-    """
-    app.config['TESTING'] = True
-
-    with app.test_client() as client:
-        yield client
-
-
-@pytest.fixture
-def temp_data_dir():
-    """
-    创建临时数据目录
-    """
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # 创建数据文件
-        questions_file = os.path.join(tmpdir, 'questions.json')
-        with open(questions_file, 'w', encoding='utf-8') as f:
-            json.dump([], f)
-
-        yield tmpdir
-
-
-@pytest.fixture
-def sample_question():
-    """
-    示例题目数据
-    """
-    return {
-        "id": "1",
-        "question": "测试题目",
-        "type": "single",
-        "options": {
-            "A": "选项A",
-            "B": "选项B",
-            "C": "选项C",
-            "D": "选项D"
-        },
-        "answer": ["A"],
-        "bank": "测试题库",
-        "chapter": "第一章"
-    }
+from app import app
 ```
 
 ### 步骤 4: 创建解析器测试
 
-创建 `tests/test_parser.py`:
+创建 `platforms/web/tests/test_parser.py`:
 
 ```python
 """
@@ -409,65 +377,12 @@ def sample_question():
 import pytest
 import os
 import tempfile
-from backend.parser import parse_docx, parse_txt
-
-
-def test_parse_txt_with_sample():
-    """测试解析TXT格式题库"""
-    content = """一、单项选择题
-1、测试题目（A）
-A. 选项A
-B. 选项B
-C. 选项C
-D. 选项D
-
-2、第二题（B）
-A. 选项A
-B. 选项B
-C. 选项C
-D. 选项D
-"""
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
-        f.write(content)
-        temp_path = f.name
-
-    try:
-        questions = parse_txt(temp_path)
-        assert len(questions) == 2
-        assert questions[0]['question'] == '测试题目'
-        assert questions[0]['answer'] == ['A']
-        assert questions[0]['type'] == 'single'
-    finally:
-        os.unlink(temp_path)
-
-
-def test_parse_multi_choice():
-    """测试解析多选题"""
-    content = """二、多项选择题
-1、测试多选题（ABC）
-A. 选项A
-B. 选项B
-C. 选项C
-D. 选项D
-"""
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
-        f.write(content)
-        temp_path = f.name
-
-    try:
-        questions = parse_txt(temp_path)
-        assert len(questions) == 1
-        assert questions[0]['type'] == 'multi'
-        assert sorted(questions[0]['answer']) == ['A', 'B', 'C']
-    finally:
-        os.unlink(temp_path)
+from parser import parse_docx, parse_txt
 ```
 
 ### 步骤 5: 创建模型测试
 
-创建 `tests/test_models.py`:
+创建 `platforms/web/tests/test_models.py`:
 
 ```python
 """
@@ -478,156 +393,22 @@ import pytest
 import json
 import os
 import tempfile
-from backend.models.questions import QuestionsModel
-
-
-@pytest.fixture
-def questions_file():
-    """
-    创建临时题库文件
-    """
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
-        sample_data = [
-            {
-                "id": "1",
-                "question": "测试题目",
-                "type": "single",
-                "options": {"A": "选项A", "B": "选项B", "C": "选项C", "D": "选项D"},
-                "answer": ["A"],
-                "bank": "测试题库",
-                "chapter": "第一章"
-            }
-        ]
-        json.dump(sample_data, f, ensure_ascii=False, indent=2)
-        temp_path = f.name
-
-    yield temp_path
-
-    if os.path.exists(temp_path):
-        os.unlink(temp_path)
-
-
-def test_get_all_questions(questions_file):
-    """测试获取所有题目"""
-    questions = QuestionsModel.get_questions(file_path=questions_file)
-    assert len(questions) == 1
-    assert questions[0]['id'] == '1'
-
-
-def test_get_question_by_id(questions_file):
-    """测试根据ID获取题目"""
-    question = QuestionsModel.get_question_by_id('1', file_path=questions_file)
-    assert question is not None
-    assert question['question'] == '测试题目'
-
-
-def test_get_question_by_id_not_found(questions_file):
-    """测试获取不存在的题目"""
-    question = QuestionsModel.get_question_by_id('999', file_path=questions_file)
-    assert question is None
-
-
-def test_filter_by_bank(questions_file):
-    """测试按题库筛选"""
-    questions = QuestionsModel.get_questions(bank='测试题库', file_path=questions_file)
-    assert len(questions) == 1
-
-    questions = QuestionsModel.get_questions(bank='不存在的题库', file_path=questions_file)
-    assert len(questions) == 0
-
-
-def test_add_question(questions_file):
-    """测试添加题目"""
-    new_question = {
-        "id": "2",
-        "question": "新题目",
-        "type": "single",
-        "options": {"A": "A", "B": "B", "C": "C", "D": "D"},
-        "answer": ["B"],
-        "bank": "测试题库",
-        "chapter": "第一章"
-    }
-
-    QuestionsModel.add_question(new_question, file_path=questions_file)
-
-    questions = QuestionsModel.get_questions(file_path=questions_file)
-    assert len(questions) == 2
-
-
-def test_delete_question(questions_file):
-    """测试删除题目"""
-    result = QuestionsModel.delete_question('1', file_path=questions_file)
-    assert result is True
-
-    questions = QuestionsModel.get_questions(file_path=questions_file)
-    assert len(questions) == 0
+from models.questions import QuestionsModel
 ```
 
 ### 步骤 6: 创建路由测试
 
-创建 `tests/test_routes.py`:
+创建 `platforms/web/tests/test_routes.py`:
 
 ```python
 """
 API路由测试
 """
-
-import json
-
-
-def test_health_check(client):
-    """测试健康检查接口"""
-    response = client.get('/api/health')
-    assert response.status_code == 200
-
-    data = json.loads(response.data)
-    assert data['success'] is True
-    assert data['status'] == 'online'
-
-
-def test_get_banks(client):
-    """测试获取题库列表"""
-    response = client.get('/api/banks')
-    assert response.status_code == 200
-
-    data = json.loads(response.data)
-    assert 'success' in data
-    assert 'banks' in data
-
-
-def test_get_questions(client):
-    """测试获取题目列表"""
-    response = client.get('/api/questions')
-    assert response.status_code == 200
-
-    data = json.loads(response.data)
-    assert 'success' in data
-    assert 'questions' in data
-
-
-def test_get_rankings(client):
-    """测试获取排行榜"""
-    response = client.get('/api/rankings')
-    assert response.status_code == 200
-
-    data = json.loads(response.data)
-    assert 'success' in data
-    assert 'rankings' in data
-
-
-def test_get_wrongbook(client):
-    """测试获取错题本"""
-    response = client.get('/api/wrongbook')
-    assert response.status_code == 200
-
-    data = json.loads(response.data)
-    assert 'success' in data
-    assert 'questions' in data
 ```
 
 ### 步骤 7: 创建 pytest 配置文件
 
-在项目根目录创建 `pytest.ini`:
+在 `platforms/web/` 目录创建 `pytest.ini`:
 
 ```ini
 [pytest]
@@ -661,6 +442,8 @@ htmlcov/
 ### 步骤 9: 运行测试
 
 ```bash
+cd platforms/web
+
 # 运行所有测试
 pytest
 
@@ -709,11 +492,13 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
+      working-directory: ./platforms/web
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
     - name: Run tests
+      working-directory: ./platforms/web
       run: |
         pytest --cov=backend --cov-report=xml
 
@@ -786,4 +571,4 @@ MIT License
 
 ---
 
-**最后更新**: 2026-01-22
+**最后更新**: 2026-01-23
