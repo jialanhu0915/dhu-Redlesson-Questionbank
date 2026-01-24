@@ -34,6 +34,10 @@ jobs:
       working-directory: ./platforms/android
       run: npm ci
 
+    - name: Generate Cordova Plugins
+      working-directory: ./platforms/android
+      run: npx cap sync android --copy-files-only
+
     - name: Build Debug APK
       working-directory: ./platforms/android
       run: |
