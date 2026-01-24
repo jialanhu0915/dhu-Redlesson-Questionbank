@@ -21,11 +21,10 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-        cache-dependency-path: platforms/electron/package-lock.json
 
     - name: Install dependencies (Electron)
       working-directory: ./platforms/electron
-      run: npm ci
+      run: npm install
 
     - name: Setup Embedded Python
       working-directory: ./platforms/electron
