@@ -2,8 +2,11 @@ name: Windows Build
 
 on:
   push:
+    branches: [ main, dev ]
     tags:
       - 'v*'
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -16,13 +19,13 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22'
+        node-version: '20'
         cache: 'npm'
         cache-dependency-path: platforms/electron/package-lock.json
 
     - name: Install dependencies (Electron)
       working-directory: ./platforms/electron
-      run: npm install
+      run: npm ci
 
     - name: Setup Embedded Python
       working-directory: ./platforms/electron
