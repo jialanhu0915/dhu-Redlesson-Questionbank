@@ -58,8 +58,3 @@ mac:
 linux:
   target: AppImage
   icon: assets/icons/
-
-publish:
-  provider: github
-  owner: dhu-quiz
-  repo: dhu-Redlesson-Questionbank
