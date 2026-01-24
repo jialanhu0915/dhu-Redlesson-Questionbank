@@ -46,15 +46,19 @@ logs/
 Thumbs.db
 desktop.ini
 
-# 上传的原始文件（临时文件）
-*.doc
-*.docx
-*.txt
-*.pdf
+# 上传的临时文件（仅忽略 uploads 目录）
+uploads/*.doc
+uploads/*.docx
+uploads/*.txt
+uploads/*.pdf
 
-# 保留 requirements.txt
+# 保留必要文件
 !requirements.txt
 !platforms/web/requirements.txt
+!platforms/files/*.txt
+!platforms/files/*.doc
+!platforms/files/*.docx
+!test-questions.txt
 
 # 临时文件
 tmp/
