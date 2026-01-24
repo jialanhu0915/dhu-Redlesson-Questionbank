@@ -3,6 +3,3 @@ node_modules/
 
 # Build artifacts
 .idea/
-
-# Frontend 目录（由 assets/public 复制生成）
-frontend/
