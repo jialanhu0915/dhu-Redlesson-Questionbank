@@ -10,7 +10,9 @@ develop-eggs/
 downloads/
 eggs/
 .eggs/
+# Python lib directories (仅忽略根目录的 Python lib)
 lib/
+!platforms/android/frontend/js/lib/
 lib64/
 parts/
 sdist/
