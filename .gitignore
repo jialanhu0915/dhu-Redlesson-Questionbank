@@ -4,13 +4,15 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+/build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
+# Python lib directories (仅忽略根目录的 Python lib)
 lib/
+!platforms/android/frontend/js/lib/
 lib64/
 parts/
 sdist/
@@ -46,15 +48,19 @@ logs/
 Thumbs.db
 desktop.ini
 
-# 上传的原始文件（临时文件）
-*.doc
-*.docx
-*.txt
-*.pdf
+# 上传的临时文件（仅忽略 uploads 目录）
+uploads/*.doc
+uploads/*.docx
+uploads/*.txt
+uploads/*.pdf
 
-# 保留 requirements.txt
+# 保留必要文件
 !requirements.txt
-!backend/requirements.txt
+!platforms/web/requirements.txt
+!platforms/files/*.txt
+!platforms/files/*.doc
+!platforms/files/*.docx
+!test-questions.txt
 
 # 临时文件
 tmp/
@@ -62,5 +68,28 @@ temp/
 *.tmp
 *.bak
 
-# 测试文件
-tests/
+# 测试输出文件
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Electron
+platforms/electron/node_modules/
+platforms/electron/python/
+platforms/electron/dist/
+platforms/electron/package-lock.json
+
+# Android
+platforms/android/node_modules/
+platforms/android/.gradle/
+platforms/android/android/app/build/
+platforms/android/android/build/
+
+# Web
+platforms/web/.venv/
+platforms/web/__pycache__/
+platforms/web/backend/__pycache__/
+platforms/web/backend/routes/__pycache__/
+platforms/web/backend/models/__pycache__/
