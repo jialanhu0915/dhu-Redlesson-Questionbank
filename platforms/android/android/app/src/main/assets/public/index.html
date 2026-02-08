@@ -23,10 +23,7 @@
                     <i class="fas fa-home"></i>
                     <span>首页</span>
                 </li>
-                <li class="nav-item" data-page="import">
-                    <i class="fas fa-upload"></i>
-                    <span>导入题库</span>
-                </li>
+
                 <li class="nav-item" data-page="manage">
                     <i class="fas fa-database"></i>
                     <span>题库管理</span>
@@ -46,7 +43,12 @@
         <main class="main-content">
             <!-- 首页 -->
             <div id="dashboard-page" class="page active">
-                <h1>欢迎使用炸红题库系统</h1>
+                <div class="page-header">
+                    <h1>欢迎使用炸红题库系统</h1>
+                    <button class="theme-toggle-small" onclick="toggleTheme()" title="切换主题">
+                        <i class="fas fa-moon" id="theme-icon-dashboard"></i>
+                    </button>
+                </div>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-icon"><i class="fas fa-database"></i></div>
@@ -81,7 +83,7 @@
                 <div class="quick-actions">
                     <h2>快速开始</h2>
                     <div class="action-buttons">
-                        <button class="btn btn-primary import-btn" onclick="switchPage('import')">
+                        <button class="btn btn-primary import-btn" onclick="goToManageAndImport()">
                             <i class="fas fa-upload"></i> 导入题库
                         </button>
                         <button class="btn btn-success" onclick="switchPage('practice')">
@@ -90,57 +92,44 @@
                     </div>
                 </div>
 
-                <div class="chapter-stats" id="chapter-stats">
-                    <h2>题库概览</h2>
-                    <div class="bank-chapters-container" id="bank-chapters-container">
-                        <!-- 按题库分类的章节将由JS动态生成 -->
+                <div class="saved-progress" id="saved-progress-section">
+                    <h2>保存的进度</h2>
+                    <div class="progress-list-container" id="dashboard-progress-list">
+                        <!-- 进度列表将由JS动态生成 -->
                     </div>
-                </div>
-            </div>
-
-            <!-- 导入题库页 -->
-            <div id="import-page" class="page">
-                <h1>导入题库</h1>
-                <div class="import-section">
-                    <div class="upload-area" id="upload-area">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>拖拽文件到此处或点击上传</p>
-                        <p class="hint">支持 .txt、.docx 格式<br><small>推荐使用TXT格式避免Word自动编号问题</small>
-                        </p>
-                        <input type="file" id="file-input" accept=".txt,.docx" hidden>
-                    </div>
-
-                    <div class="import-form">
-                        <div class="form-group">
-                            <label for="bank-name">题库名称（可选）</label>
-                            <input type="text" id="bank-name" placeholder="留空则自动识别">
-                        </div>
-                        <div class="selected-file" id="selected-file" style="display: none;">
-                            <i class="fas fa-file-alt"></i>
-                            <span id="file-name"></span>
-                            <button class="btn-icon" onclick="clearFile()">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <button class="btn btn-primary btn-block" id="import-btn" onclick="importFile()" disabled>
-                            <i class="fas fa-upload"></i> 开始导入
-                        </button>
-                    </div>
-
-                    <div class="import-progress" id="import-progress" style="display: none;">
-                        <div class="progress-bar">
-                            <div class="progress-fill"></div>
-                        </div>
-                        <p class="progress-text">正在导入...</p>
-                    </div>
-
-                    <div class="import-result" id="import-result" style="display: none;"></div>
                 </div>
             </div>
 
             <!-- 题库管理页 -->
             <div id="manage-page" class="page">
-                <h1>题库管理</h1>
+                <h1>题库管理 <button class="btn btn-primary btn-small" onclick="importFileSimple()">
+                    <i class="fas fa-upload"></i> 导入题库
+                </button></h1>
+                <input type="file" id="file-input" accept=".txt,.docx" hidden>
+                <div class="import-section" style="margin: 12px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
+                    <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()" style="border: 2px dashed #ccc; border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s;">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 32px; color: #999; margin-bottom: 8px;"></i>
+                        <p style="margin: 0; color: #666;">点击上传题库文件</p>
+                        <p class="hint" style="margin: 4px 0 0; font-size: 12px; color: #999;">支持 .txt、.docx 格式</p>
+                    </div>
+                    <div class="selected-file" id="selected-file" style="display: none; margin: 12px 0; padding: 8px 12px; background: #e8f5e9; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-file-alt" style="color: #4caf50;"></i>
+                        <span id="file-name" style="flex: 1;"></span>
+                        <button class="btn-icon" onclick="clearFile()" style="background: none; border: none; cursor: pointer; color: #666;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <button class="btn btn-primary btn-block" id="import-btn" onclick="importFile()" disabled style="margin-top: 12px;">
+                        <i class="fas fa-upload"></i> 开始导入
+                    </button>
+                    <div class="import-progress" id="import-progress" style="display: none; margin: 12px 0;">
+                        <div class="progress-bar" style="height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                            <div class="progress-fill" style="height: 100%; background: linear-gradient(90deg, #4caf50, #8bc34a); width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <p class="progress-text" style="margin: 8px 0; font-size: 13px; color: #666;">正在导入...</p>
+                    </div>
+                    <div class="import-result" id="import-result" style="display: none; margin: 12px 0; padding: 12px; border-radius: 6px;"></div>
+                </div>
                 <div class="manage-section">
                     <div class="bank-list" id="bank-list">
                         <!-- 题库列表将通过JS动态生成 -->
@@ -311,6 +300,12 @@
                                     style="display: none;">
                                     下一题 <i class="fas fa-arrow-right"></i>
                                 </button>
+                                <!-- 答题卡按钮（移动端） -->
+                                <button class="nav-trigger-btn" id="nav-trigger-btn" onclick="openNavModal()" style="display: none;">
+                                    <i class="fas fa-th"></i>
+                                    <span>答题卡</span>
+                                    <span class="nav-badge" id="nav-badge">0/0</span>
+                                </button>
                             </div>
                         </div>
 
@@ -364,25 +359,6 @@
 
                     <!-- 右侧：独立面板区域 -->
                     <div class="side-panels">
-                        <!-- 成绩排行榜（独立窗口，默认折叠） -->
-                        <div class="side-panel collapsible-panel" id="ranking-panel-wrapper">
-                            <div class="panel-header" onclick="togglePanel('ranking-panel-wrapper')">
-                                <h3><i class="fas fa-trophy"></i> 成绩排行榜</h3>
-                                <div class="panel-header-right">
-                                    <button class="btn btn-small btn-danger"
-                                        onclick="event.stopPropagation(); clearRankings()" title="清空排名">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                    <i class="fas fa-chevron-down toggle-icon"></i>
-                                </div>
-                            </div>
-                            <div class="panel-content">
-                                <div class="ranking-list" id="ranking-list">
-                                    <div class="empty-ranking">暂无记录</div>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- 做题进度（独立窗口，默认展开） -->
                         <div class="side-panel collapsible-panel" id="progress-panel-wrapper">
                             <div class="panel-header" onclick="togglePanel('progress-panel-wrapper')">
@@ -444,6 +420,27 @@
         </main>
     </div>
 
+    <!-- 底部标签栏导航（移动端） -->
+    <nav class="bottom-tab-bar" id="bottom-tab-bar">
+        <div class="tab-item active" data-page="dashboard">
+            <i class="fas fa-home"></i>
+            <span>首页</span>
+        </div>
+
+        <div class="tab-item" data-page="manage">
+            <i class="fas fa-database"></i>
+            <span>管理</span>
+        </div>
+        <div class="tab-item" data-page="wrongbook">
+            <i class="fas fa-times-circle"></i>
+            <span>错题</span>
+        </div>
+        <div class="tab-item" data-page="practice">
+            <i class="fas fa-pen"></i>
+            <span>刷题</span>
+        </div>
+    </nav>
+
     <!-- 通知提示 -->
     <div class="toast-container" id="toast-container"></div>
 
@@ -461,6 +458,23 @@
 
     <!-- 题目编辑对话框 -->
     <div class="modal" id="edit-modal">
+
+    <!-- 答题卡模态框（移动端） -->
+    <div class="nav-modal" id="nav-modal">
+        <div class="nav-modal-content">
+            <div class="nav-modal-header">
+                <h3>答题卡</h3>
+                <button class="nav-modal-close" onclick="closeNavModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="nav-modal-body" id="nav-modal-body">
+                <!-- 答题卡内容由 JS 动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 题目编辑对话框 -->
         <div class="modal-content modal-large">
             <h3>编辑题目</h3>
             <div class="edit-form">
@@ -507,14 +521,17 @@
     <script src="js/modules/state.js"></script>
     <script src="js/modules/utils.js"></script>
     <script src="js/modules/core.js"></script>
+    <script src="js/modules/settings.js"></script>
     <script src="js/modules/stats.js"></script>
     <script src="js/modules/upload.js"></script>
     <script src="js/modules/banks.js"></script>
     <script src="js/modules/practice.js"></script>
     <script src="js/modules/modes.js"></script>
-    <script src="js/modules/rankings.js"></script>
     <script src="js/modules/wrongbook.js"></script>
     <script src="js/modules/progress.js"></script>
+
+    <!-- 应用核心逻辑 -->
+    <script src="js/app.js"></script>
 
     <script src="js/mobile.js"></script>
 

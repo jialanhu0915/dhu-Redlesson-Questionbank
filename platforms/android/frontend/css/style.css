@@ -11,15 +11,66 @@
     --warning-light: #fff8e6;
     --text-color: #1d1d1f;
     --text-secondary: #86868b;
+    --text-muted: #a1a1a6;
     --border-color: #d2d2d7;
     --bg-color: #f5f5f7;
     --card-bg: #ffffff;
+    --hover-bg: #f5f5f7;
     --sidebar-bg: #1d1d1f;
     --sidebar-active: #2d2d2f;
     --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     --shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.12);
     --radius: 12px;
     --radius-small: 8px;
+}
+
+/* ==================== 深色模式 ==================== */
+:root[data-theme="dark"] {
+    --primary-color: #5b8def;
+    --primary-dark: #4a7bd9;
+    --primary-light: #2d2d2f;
+    --success-color: #30d158;
+    --success-light: #1d3d25;
+    --danger-color: #ff453a;
+    --danger-light: #3d1a1a;
+    --warning-color: #ff9f0a;
+    --warning-light: #3d2d1a;
+    --text-color: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --text-muted: #6e6e73;
+    --border-color: #38383a;
+    --bg-color: #000000;
+    --card-bg: #1c1c1e;
+    --hover-bg: #2c2c2e;
+    --sidebar-bg: #1c1c1e;
+    --sidebar-active: #2d2d2f;
+    --shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --primary-color: #5b8def;
+        --primary-dark: #4a7bd9;
+        --primary-light: #2d2d2f;
+        --success-color: #30d158;
+        --success-light: #1d3d25;
+        --danger-color: #ff453a;
+        --danger-light: #3d1a1a;
+        --warning-color: #ff9f0a;
+        --warning-light: #3d2d1a;
+        --text-color: #f5f5f7;
+        --text-secondary: #a1a1a6;
+        --text-muted: #6e6e73;
+        --border-color: #38383a;
+        --bg-color: #000000;
+        --card-bg: #1c1c1e;
+        --hover-bg: #2c2c2e;
+        --sidebar-bg: #1c1c1e;
+        --sidebar-active: #2d2d2f;
+        --shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+        --shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
 }
 
 * {
@@ -1247,6 +1298,15 @@ select.form-control {
 @media (max-width: 768px) {
     /* 侧边栏在移动端由 mobile.css 控制，这里不做修改 */
 
+    /* 隐藏侧边面板（移动端） */
+    .side-panels {
+        display: none !important;
+    }
+
+    .side-panel {
+        display: none !important;
+    }
+
     .main-content {
         margin-left: 0;
         padding: 20px;
@@ -1308,162 +1368,6 @@ select.form-control {
     flex-shrink: 0;
 }
 
-/* 保留旧的 ranking-panel 兼容性 */
-.ranking-panel {
-    width: 300px;
-    min-width: 300px;
-    max-width: 300px;
-    flex-shrink: 0;
-    flex-grow: 0;
-    background: var(--card-bg);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    position: sticky;
-    top: 20px;
-    max-height: calc(100vh - 140px);
-    display: flex;
-    flex-direction: column;
-}
-
-.ranking-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    border-bottom: 1px solid var(--border-color);
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.ranking-header h3 {
-    color: white;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.ranking-header h3 i {
-    color: #ffd700;
-}
-
-.ranking-header .btn-small {
-    padding: 5px 10px;
-    font-size: 12px;
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: white;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.ranking-header .btn-small:hover {
-    background: rgba(255, 77, 79, 0.8);
-}
-
-.ranking-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-}
-
-.empty-ranking {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-
-.ranking-item {
-    display: flex;
-    align-items: center;
-    padding: 6px 10px;
-    border-radius: 6px;
-    margin-bottom: 4px;
-    background: var(--bg-color);
-    transition: transform 0.2s, box-shadow 0.2s;
-    gap: 8px;
-}
-
-.ranking-item:hover {
-    transform: translateX(3px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.ranking-item.top-1 {
-    background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
-    border: 1px solid #ffd700;
-}
-
-.ranking-item.top-2 {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border: 1px solid #c0c0c0;
-}
-
-.ranking-item.top-3 {
-    background: linear-gradient(135deg, #fff5f0 0%, #ffe4d6 100%);
-    border: 1px solid #cd7f32;
-}
-
-.ranking-rank {
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    font-weight: bold;
-    font-size: 11px;
-    flex-shrink: 0;
-    background: var(--card-bg);
-    color: var(--text-color);
-}
-
-.ranking-item.top-1 .ranking-rank {
-    background: linear-gradient(135deg, #ffd700, #ffed4e);
-    color: #8b6914;
-}
-
-.ranking-item.top-2 .ranking-rank {
-    background: linear-gradient(135deg, #c0c0c0, #e8e8e8);
-    color: #666;
-}
-
-.ranking-item.top-3 .ranking-rank {
-    background: linear-gradient(135deg, #cd7f32, #daa06d);
-    color: #5c3a1e;
-}
-
-.ranking-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.ranking-name {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ranking-meta {
-    font-size: 11px;
-    color: var(--text-secondary);
-}
-
-.ranking-accuracy {
-    font-size: 14px;
-    font-weight: bold;
-    color: var(--primary-color);
-    flex-shrink: 0;
-}
-
 /* 响应式适配 */
 @media (max-width: 1200px) {
     .practice-layout {
@@ -1476,7 +1380,6 @@ select.form-control {
         min-width: 0;
     }
 
-    .ranking-panel,
     .side-panels {
         width: 300px;
         min-width: 300px;

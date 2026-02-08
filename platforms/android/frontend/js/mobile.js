@@ -4,16 +4,8 @@
 
 // 全局变量
 var isLocalClient = true;
-var mobileMenuOpen = false;
 var mobileInitialized = false;
-var dragMoved = false;
-
-// 拖动状态
-var isDragging = false;
-var dragStartX = 0;
-var dragStartY = 0;
-var menuBtnStartX = 0;
-var menuBtnStartY = 0;
+var currentTheme = 'auto'; // 'light', 'dark', 'auto'
 
 // 页面加载完成后初始化
 window.addEventListener('load', function() {
@@ -21,6 +13,9 @@ window.addEventListener('load', function() {
     setTimeout(function() {
         initMobile();
     }, 100);
+
+    // 初始化主题
+    initTheme();
 });
 
 // 新增：如果页面已经加载完成，立即执行
@@ -70,9 +65,7 @@ function initMobile() {
     if (window.Capacitor !== undefined || window.innerWidth < 768) {
         console.log('检测到移动端环境，初始化移动端功能...');
 
-        createMobileMenu();
-        initDraggableMenu();
-        createBackButton();
+        initBottomTabBar();
 
         console.log('✓ 移动端功能初始化完成');
     } else {
@@ -126,275 +119,137 @@ function showRemoteBadge() {
     document.body.appendChild(badge);
 }
 
-// 创建移动端菜单按钮
-function createMobileMenu() {
-    var btn = document.createElement('button');
-    btn.className = 'mobile-menu-btn';
-    btn.innerHTML = '<i class="fas fa-bars"></i>';
-    btn.type = 'button';
-    
-    btn.onclick = function() {
-        toggleMenu();
-    };
-    
-    document.body.appendChild(btn);
-    
-    // 点击导航项时关闭菜单
-    var navItems = document.querySelectorAll('.nav-item');
-    for (var i = 0; i < navItems.length; i++) {
-        navItems[i].onclick = function(originalClick) {
-            return function(e) {
-                closeMenu();
-                if (originalClick) originalClick.call(this, e);
-            };
-        }(navItems[i].onclick);
-    }
-}
+// ==================== 底部标签栏导航 ====================
+function initBottomTabBar() {
+    console.log('初始化底部标签栏...');
 
-function toggleMenu() {
-    var sidebar = document.querySelector('.sidebar');
-    var btn = document.querySelector('.mobile-menu-btn');
-    var overlay = document.querySelector('.sidebar-overlay');
-    
-    mobileMenuOpen = !mobileMenuOpen;
-    
-    if (mobileMenuOpen) {
-        sidebar.className += ' open';
-        btn.className += ' active';
-        btn.innerHTML = '<i class="fas fa-times"></i>';
-        
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.className = 'sidebar-overlay active';
-            overlay.onclick = closeMenu;
-            document.body.appendChild(overlay);
-        }
-    } else {
-        sidebar.className = sidebar.className.replace(' open', '');
-        btn.className = btn.className.replace(' active', '');
-        btn.innerHTML = '<i class="fas fa-bars"></i>';
-        
-        if (overlay && overlay.parentNode) {
-            overlay.parentNode.removeChild(overlay);
-        }
-    }
-}
-
-function closeMenu() {
-    if (mobileMenuOpen) {
-        toggleMenu();
-    }
-}
-
-// ==================== 可拖动悬浮菜单 ====================
-function initDraggableMenu() {
-    console.log('初始化可拖动菜单...');
-
-    var btn = document.querySelector('.mobile-menu-btn');
-    if (!btn) {
-        console.warn('移动端菜单按钮未找到');
+    var tabItems = document.querySelectorAll('.bottom-tab-bar .tab-item');
+    if (tabItems.length === 0) {
+        console.warn('底部标签栏元素未找到');
         return;
     }
 
-    // 从 localStorage 恢复位置，如果没有则使用默认
-    var savedPos = localStorage.getItem('mobileMenuBtnPos');
-    if (savedPos) {
-        var pos = JSON.parse(savedPos);
-        btn.style.left = pos.x + 'px';
-        btn.style.top = pos.y + 'px';
-        console.log('恢复菜单按钮位置:', pos);
-    } else {
-        // 默认位置：垂直居中左侧
-        var defaultTop = (window.innerHeight - 44) / 2;
-        btn.style.left = '8px';
-        btn.style.top = defaultTop + 'px';
-        console.log('使用默认菜单按钮位置:', { x: 8, y: defaultTop });
-    }
+    // 绑定点击事件
+    tabItems.forEach(function(item) {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            var page = this.getAttribute('data-page');
+            console.log('底部标签栏点击:', page);
 
-    // 绑定拖动事件
-    btn.addEventListener('touchstart', handleDragStart, { passive: false });
-    btn.addEventListener('touchmove', handleDragMove, { passive: false });
-    btn.addEventListener('touchend', handleDragEnd);
-    btn.addEventListener('mousedown', handleDragStart);
-    btn.addEventListener('mousemove', handleDragMove);
-    btn.addEventListener('mouseup', handleDragEnd);
-    btn.addEventListener('mouseleave', handleDragEnd);
+            // 切换页面
+            if (typeof switchPage === 'function') {
+                switchPage(page);
+            } else {
+                console.warn('switchPage 函数未定义');
+            }
+        });
+    });
 
-    console.log('✓ 可拖动菜单初始化完成');
+    console.log('✓ 底部标签栏初始化完成');
 }
 
-function handleDragStart(e) {
-    e.preventDefault();
-
-    dragMoved = false;
-
-    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    var clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-    isDragging = true;
-    dragStartX = clientX;
-    dragStartY = clientY;
-
-    var btn = document.querySelector('.mobile-menu-btn');
-    menuBtnStartX = btn.offsetLeft;
-    menuBtnStartY = btn.offsetTop;
-
-    btn.classList.add('dragging');
-    console.log('开始拖动');
-}
-
-function handleDragMove(e) {
-    if (!isDragging) return;
-
-    e.preventDefault();
-
-    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    var clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-    var deltaX = clientX - dragStartX;
-    var deltaY = clientY - dragStartY;
-
-    if (!dragMoved && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
-        dragMoved = true;
-    }
-
-    var newX = menuBtnStartX + deltaX;
-    var newY = menuBtnStartY + deltaY;
-
-    // 限制在屏幕内
-    var windowWidth = window.innerWidth;
-    var windowHeight = window.innerHeight;
-    var btnSize = 44; // 按钮大小
-
-    newX = Math.max(8, Math.min(newX, windowWidth - btnSize - 8));
-    newY = Math.max(8, Math.min(newY, windowHeight - btnSize - 8));
-
-    var btn = document.querySelector('.mobile-menu-btn');
-    btn.style.left = newX + 'px';
-    btn.style.top = newY + 'px';
-}
-
-function handleDragEnd(e) {
-    if (!isDragging) return;
-
-    isDragging = false;
-
-    var btn = document.querySelector('.mobile-menu-btn');
-    btn.classList.remove('dragging');
-
-    if (!dragMoved) {
-        // 视为点击，切换菜单
-        toggleMenu();
-        return;
-    }
-
-    // 保存位置到 localStorage
-    var pos = {
-        x: btn.offsetLeft,
-        y: btn.offsetTop
-    };
-    localStorage.setItem('mobileMenuBtnPos', JSON.stringify(pos));
-    console.log('保存菜单按钮位置:', pos);
-}
-
-// ==================== 物理返回按钮 ====================
-function createBackButton() {
-    console.log('创建物理返回按钮...');
-
-    // 检查是否已存在
-    if (document.querySelector('.back-btn')) {
-        console.log('返回按钮已存在，跳过创建');
-        return;
-    }
-
-    var btn = document.createElement('button');
-    btn.className = 'back-btn';
-    btn.innerHTML = '<i class="fas fa-arrow-left"></i>';
-    btn.type = 'button';
-    btn.onclick = handleBack;
-
-    document.body.appendChild(btn);
-    console.log('✓ 物理返回按钮创建完成');
-}
-
-// 处理返回操作
-function handleBack() {
-    console.log('处理返回操作，当前页面:', currentPage);
-
-    // 判断当前页面状态
-    var questionBrowser = document.getElementById('question-browser');
-    var wrongQuestionBrowser = document.getElementById('wrong-question-browser');
-
-    // 优先级 1: 在题库详情页 → 返回题库列表
-    if (questionBrowser && questionBrowser.style.display !== 'none') {
-        console.log('从题库详情页返回列表');
-        if (typeof showBankList === 'function') {
-            showBankList();
+// 更新底部标签栏激活状态
+function updateBottomTabBar(page) {
+    var tabItems = document.querySelectorAll('.bottom-tab-bar .tab-item');
+    tabItems.forEach(function(item) {
+        if (item.getAttribute('data-page') === page) {
+            item.classList.add('active');
         } else {
-            console.warn('showBankList 函数未定义');
+            item.classList.remove('active');
         }
-        return;
-    }
+    });
+}
 
-    // 优先级 2: 在错题详情页 → 返回错题列表
-    if (wrongQuestionBrowser && wrongQuestionBrowser.style.display !== 'none') {
-        console.log('从错题详情页返回列表');
-        if (typeof showWrongBankList === 'function') {
-            showWrongBankList();
-        } else {
-            console.warn('showWrongBankList 函数未定义');
-        }
-        return;
-    }
+// ==================== 主题切换功能 ====================
+function initTheme() {
+    // 从 localStorage 读取用户偏好
+    var savedTheme = localStorage.getItem('theme') || 'auto';
+    currentTheme = savedTheme;
 
-    // 优先级 3: 其他页面 → 返回首页
-    console.log('返回首页');
-    if (typeof switchPage === 'function') {
-        switchPage('dashboard');
+    applyTheme(savedTheme);
+    updateThemeIcon();
+}
+
+function applyTheme(theme) {
+    var root = document.documentElement;
+
+    if (theme === 'auto') {
+        // 自动模式：移除 data-theme 属性，使用系统偏好
+        root.removeAttribute('data-theme');
     } else {
-        console.warn('switchPage 函数未定义');
+        // 手动模式：设置 data-theme 属性
+        root.setAttribute('data-theme', theme);
     }
 }
+
+function toggleTheme() {
+    // 循环切换：auto → light → dark → auto
+    if (currentTheme === 'auto') {
+        currentTheme = 'light';
+    } else if (currentTheme === 'light') {
+        currentTheme = 'dark';
+    } else {
+        currentTheme = 'auto';
+    }
+
+    // 保存到 localStorage
+    localStorage.setItem('theme', currentTheme);
+
+    // 应用主题
+    applyTheme(currentTheme);
+    updateThemeIcon();
+
+    // 显示提示
+    var themeName = currentTheme === 'auto' ? '自动' : (currentTheme === 'light' ? '浅色' : '深色');
+    showToast('已切换到' + themeName + '模式', 'success');
+}
+
+function updateThemeIcon() {
+    // 检测当前实际应用的主题
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+                 (document.documentElement.getAttribute('data-theme') !== 'light' &&
+                  window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    // 更新首页主题图标
+    var dashboardIcon = document.getElementById('theme-icon-dashboard');
+    if (dashboardIcon) {
+        dashboardIcon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+    }
+}
+
+// ==================== 触觉反馈 ====================
 
 // ==================== 本地存储功能 ====================
 function setupLocalStorage() {
     // 初始化存储
-    if (!localStorage.getItem('quiz_rankings')) {
-        localStorage.setItem('quiz_rankings', '[]');
-    }
     if (!localStorage.getItem('quiz_wrongbook')) {
         localStorage.setItem('quiz_wrongbook', '[]');
     }
     if (!localStorage.getItem('quiz_progress')) {
         localStorage.setItem('quiz_progress', '[]');
     }
-    
+
     // 覆盖fetch
     var originalFetch = window.fetch;
     window.fetch = function(url, options) {
         var urlStr = url.toString();
         options = options || {};
-        
-        // 排行榜API
-        if (urlStr.indexOf('/api/rankings') !== -1 && !isLocalClient) {
-            return handleRankings(urlStr, options);
-        }
-        
+
         // 错题本API
         if (urlStr.indexOf('/api/wrongbook') !== -1 && !isLocalClient) {
             return handleWrongbook(urlStr, options);
         }
-        
+
         // 进度API
         if (urlStr.indexOf('/api/progress') !== -1 && !isLocalClient) {
             return handleProgress(urlStr, options);
         }
-        
+
         // 错题练习
         if (urlStr.indexOf('/api/practice/wrong') !== -1 && !isLocalClient) {
             return handleWrongPractice(urlStr, options);
         }
-        
+
         return originalFetch(url, options);
     };
 }
@@ -404,42 +259,6 @@ function mockResponse(data) {
         ok: true,
         json: function() { return Promise.resolve(data); }
     });
-}
-
-function handleRankings(url, options) {
-    var method = options.method || 'GET';
-    var rankings = JSON.parse(localStorage.getItem('quiz_rankings') || '[]');
-    
-    if (method === 'GET') {
-        return mockResponse({ success: true, rankings: rankings });
-    }
-    
-    if (method === 'POST') {
-        var body = JSON.parse(options.body);
-        rankings.unshift({
-            id: Date.now().toString(),
-            player_name: body.player_name || '匿名',
-            bank_name: body.bank_name || '混合题库',
-            score: body.score || 0,
-            total: body.total || 0,
-            correct: body.correct || 0,
-            accuracy: body.accuracy || 0,
-            time_used: body.time_used || '00:00',
-            mode: body.mode || 'random',
-            date: new Date().toLocaleString('zh-CN')
-        });
-        if (rankings.length > 100) rankings.length = 100;
-        localStorage.setItem('quiz_rankings', JSON.stringify(rankings));
-        if (body.player_name) localStorage.setItem('quiz_player_name', body.player_name);
-        return mockResponse({ success: true, message: '成绩已保存' });
-    }
-    
-    if (method === 'DELETE') {
-        localStorage.setItem('quiz_rankings', '[]');
-        return mockResponse({ success: true, message: '已清空' });
-    }
-    
-    return mockResponse({ success: false });
 }
 
 function handleWrongbook(url, options) {
@@ -613,3 +432,18 @@ function handleWrongPractice(url, options) {
     var wrongbook = JSON.parse(localStorage.getItem('quiz_wrongbook') || '[]');
     return mockResponse({ success: true, questions: wrongbook, total: wrongbook.length });
 }
+
+// ==================== 导出到全局作用域 ====================
+// 确保 HTML 中的 onclick 可以调用这些函数
+
+// 主题切换函数
+window.toggleTheme = toggleTheme;
+window.initTheme = initTheme;
+window.updateThemeIcon = updateThemeIcon;
+
+// 底部标签栏函数
+window.updateBottomTabBar = updateBottomTabBar;
+
+// 移动端初始化函数
+window.initMobile = initMobile;
+window.initBottomTabBar = initBottomTabBar;

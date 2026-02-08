@@ -1,5 +1,5 @@
-const CACHE_NAME = 'dhu-quiz-v1';
-const CACHE_VERSION = 1;
+const CACHE_NAME = 'dhu-quiz-v2';
+const CACHE_VERSION = 2;
 
 // 静态资源列表
 const STATIC_ASSETS = [
@@ -14,7 +14,6 @@ const STATIC_ASSETS = [
   '/js/modules/practice.js',
   '/js/modules/upload.js',
   '/js/modules/wrongbook.js',
-  '/js/modules/rankings.js',
   '/js/modules/progress.js',
   '/js/modules/stats.js',
   '/js/modules/modes.js',
@@ -23,6 +22,10 @@ const STATIC_ASSETS = [
   '/js/modules/settings.js',
   '/js/modules/state.js',
   '/js/modules/index.js',
+  '/js/modules/storage.js',
+  '/js/modules/parser.js',
+  '/js/lib/dexie.min.js',
+  '/js/lib/mammoth.browser.min.js',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];

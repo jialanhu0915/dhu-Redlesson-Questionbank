@@ -1,5 +1,13 @@
 {
   "appId": "com.dhu.redlesson",
   "appName": "RedLesson",
-  "webDir": "frontend"
+  "webDir": "frontend",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }

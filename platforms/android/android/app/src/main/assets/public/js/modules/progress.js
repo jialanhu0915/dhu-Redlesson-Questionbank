@@ -165,10 +165,7 @@ async function loadProgress(progressId) {
                 navPanel.style.display = 'block';
                 navPanel.classList.remove('collapsed');
                 navPanel.classList.add('expanded');
-                
-                // 进入刷题后折叠排行榜面板
-                document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
-                
+
                 const modeBadge = document.getElementById('practice-mode-badge');
                 const modeTexts = {
                     'random': '刷题模式',
@@ -196,6 +193,9 @@ async function loadProgress(progressId) {
                 
                 renderQuestionNav();
                 renderQuestion();
+                
+                // 切换到练习页面
+                switchPage('practice');
                 
                 showToast('进度已恢复', 'success');
                 
@@ -228,6 +228,60 @@ async function deleteProgress(progressId, silent = false) {
     } catch (error) {
         if (!silent) {
             showToast('删除失败: ' + error.message, 'error');
+        }
+    }
+}
+
+// 加载首页进度列表（列表样式）
+async function loadProgressForDashboard() {
+    try {
+        const data = progressUseMobileStore ?
+            await storageService.getProgress() :
+            await (await fetch(`${API_BASE}/api/progress`)).json();
+
+        const container = document.getElementById('dashboard-progress-list');
+        if (!container) return;
+
+        if (data.success && data.progress_list.length > 0) {
+            const html = data.progress_list.map(p => {
+                const modeNames = {
+                    'random': '随机刷题',
+                    'exam': '模拟考试',
+                    'sequence': '顺序做题',
+                    'wrong': '错题练习'
+                };
+                const date = new Date(p.date);
+                const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+                return `
+                    <div class="db-progress-item" onclick="loadProgress('${p.id}')">
+                        <div class="db-progress-left">
+                            <span class="db-mode-badge">${modeNames[p.mode] || '刷题'}</span>
+                            <span class="db-bank-name">${p.bank || '全部题库'}</span>
+                            <span class="db-progress-nums">${p.current_index + 1}/${p.total}</span>
+                        </div>
+                        <div class="db-progress-right">
+                            <span class="db-correct">✓${p.correct}</span>
+                            <span class="db-wrong">✗${p.wrong}</span>
+                            <span class="db-time">${dateStr}</span>
+                            <button class="db-play-btn" onclick="event.stopPropagation(); loadProgress('${p.id}')">▶</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div class="db-empty">
+                    <p>暂无保存的进度</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载进度失败:', error);
+        const container = document.getElementById('dashboard-progress-list');
+        if (container) {
+            container.innerHTML = '<p class="text-error">加载失败</p>';
         }
     }
 }

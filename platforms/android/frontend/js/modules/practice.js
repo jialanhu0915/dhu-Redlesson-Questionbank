@@ -24,13 +24,46 @@ async function loadPracticeOptions() {
         select.onchange = () => {
             loadPracticeChapters();
             updateAvailableStats();
+            savePracticeSettingsToLocal(); // 保存设置
         };
         
         // 初始加载统计
         updateAvailableStats();
+        
+        // 恢复保存的练习设置
+        if (typeof loadPracticeSettingsFromLocal === 'function') {
+            loadPracticeSettingsFromLocal();
+        }
+        
+        // 绑定其他输入框的变化事件以自动保存
+        bindPracticeSettingsChangeEvents();
     } catch (error) {
         console.error('加载题库选项失败:', error);
     }
+}
+
+// 绑定练习设置变化事件
+function bindPracticeSettingsChangeEvents() {
+    const inputs = [
+        'practice-chapter', 'practice-mode', 'practice-single-count',
+        'practice-multi-count', 'enable-timer', 'practice-time',
+        'shuffle-options', 'shuffle-questions', 'player-name'
+    ];
+    
+    inputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', () => {
+                savePracticeSettingsToLocal();
+            });
+            // 对于文本输入框，监听input事件
+            if (element.tagName === 'INPUT' && element.type === 'text') {
+                element.addEventListener('input', () => {
+                    savePracticeSettingsToLocal();
+                });
+            }
+        }
+    });
 }
 
 // 加载刷题章节
@@ -106,15 +139,21 @@ function showPracticeSettings() {
     document.getElementById('practice-header-info').style.display = 'none';
     document.getElementById('question-nav-panel').style.display = 'none';
     document.getElementById('practice-title').style.display = 'block';
-    
+
     // 停止计时器
     if (practiceTimer) {
         clearInterval(practiceTimer);
         practiceTimer = null;
     }
-    
-    // 返回设置页时展开排行榜面板
-    document.getElementById('ranking-panel-wrapper').classList.remove('collapsed');
+
+    // 退出刷题模式，显示底部标签栏
+    document.body.classList.remove('practice-mode');
+
+    // 隐藏答题卡按钮
+    const navTriggerBtn = document.getElementById('nav-trigger-btn');
+    if (navTriggerBtn) {
+        navTriggerBtn.style.display = 'none';
+    }
 }
 
 // 开始练习
@@ -184,16 +223,16 @@ async function startPractice(examMode = false) {
             document.getElementById('practice-result').style.display = 'none';
             document.getElementById('practice-header-info').style.display = 'flex';
             document.getElementById('practice-title').style.display = 'none';
-            
+
+            // 进入刷题模式，隐藏底部标签栏
+            document.body.classList.add('practice-mode');
+
             // 显示并展开答题卡
             const navPanel = document.getElementById('question-nav-panel');
             navPanel.style.display = 'block';
             navPanel.classList.remove('collapsed');
             navPanel.classList.add('expanded');
-            
-            // 进入刷题后折叠排行榜面板
-            document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
-            
+
             // 设置模式标识
             const modeBadge = document.getElementById('practice-mode-badge');
             if (isExamMode) {
@@ -208,7 +247,16 @@ async function startPractice(examMode = false) {
             
             // 渲染答题卡
             renderQuestionNav();
-            
+
+            // 移动端：显示答题卡按钮并更新徽章
+            const navTriggerBtn = document.getElementById('nav-trigger-btn');
+            const navBadge = document.getElementById('nav-badge');
+            if (navTriggerBtn && navBadge) {
+                navTriggerBtn.style.display = 'flex';
+                const answeredCount = questionResults.filter(r => r.answered).length;
+                navBadge.textContent = `${answeredCount}/${practiceQuestions.length}`;
+            }
+
             // 设置计时器（先清除旧的）
             if (practiceTimer) {
                 clearInterval(practiceTimer);
@@ -278,8 +326,14 @@ let manualNavPageChange = false; // 标记是否是手动切换页面
 
 // 渲染题目导航（分组显示单选和多选，支持可切换分页）
 function renderQuestionNav() {
-    const grid = document.getElementById('question-nav-grid');
-    
+    // 检测是否为移动端
+    const isMobile = window.innerWidth < 768;
+
+    // 移动端：渲染到模态框
+    const targetContainer = isMobile ? document.getElementById('nav-modal-body') : document.getElementById('question-nav-grid');
+
+    if (!targetContainer) return;
+
     // 分离单选和多选题
     const singleQuestions = [];
     const multiQuestions = [];
@@ -290,104 +344,143 @@ function renderQuestionNav() {
             singleQuestions.push({ index: i, question: q });
         }
     });
-    
-    // 合并所有题目用于分页
-    const allItems = [...singleQuestions, ...multiQuestions];
-    const totalPages = Math.ceil(allItems.length / NAV_PAGE_SIZE);
-    
-    // 确保当前页码有效
-    if (navCurrentPage < 1) navCurrentPage = 1;
-    if (navCurrentPage > totalPages) navCurrentPage = totalPages;
-    if (totalPages === 0) navCurrentPage = 1;
-    
-    // 自动切换到包含当前题目的页面（仅在非手动切换时）
-    if (!manualNavPageChange) {
-        const currentItemIndex = allItems.findIndex(item => item.index === currentQuestionIndex);
-        if (currentItemIndex >= 0) {
-            const targetPage = Math.floor(currentItemIndex / NAV_PAGE_SIZE) + 1;
-            if (targetPage !== navCurrentPage) {
-                navCurrentPage = targetPage;
-            }
-        }
-    }
-    
-    // 计算当前页的题目范围
-    const startIdx = (navCurrentPage - 1) * NAV_PAGE_SIZE;
-    const endIdx = Math.min(startIdx + NAV_PAGE_SIZE, allItems.length);
-    const pageItems = allItems.slice(startIdx, endIdx);
-    
+
+    // 移动端：不分页，显示所有题目
     let html = '';
-    
-    // 分页控制（如果有多页）
-    if (totalPages > 1) {
-        html += '<div class="nav-pagination">';
-        html += `<button class="nav-page-btn ${navCurrentPage <= 1 ? 'disabled' : ''}" onclick="changeNavPage(${navCurrentPage - 1})" ${navCurrentPage <= 1 ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
-        
-        // 页码按钮
-        for (let p = 1; p <= totalPages; p++) {
-            const active = p === navCurrentPage ? 'active' : '';
-            html += `<button class="nav-page-num ${active}" onclick="changeNavPage(${p})">${p}</button>`;
-        }
-        
-        html += `<button class="nav-page-btn ${navCurrentPage >= totalPages ? 'disabled' : ''}" onclick="changeNavPage(${navCurrentPage + 1})" ${navCurrentPage >= totalPages ? 'disabled' : ''}><i class="fas fa-chevron-right"></i></button>`;
-        html += '</div>';
-    }
-    
-    // 找出当前页中单选和多选的分界
-    let currentSection = null;
-    
-    pageItems.forEach((item) => {
-        const itemType = item.question.type === 'multi' ? 'multi' : 'single';
-        
-        // 检查是否需要添加分组标题
-        if (currentSection !== itemType) {
-            // 关闭上一个分组
-            if (currentSection !== null) {
-                html += '</div></div>';
+
+    if (isMobile) {
+        // 移动端：直接分组显示所有题目
+        let currentSection = null;
+
+        // 按顺序遍历所有题目
+        practiceQuestions.forEach((q, i) => {
+            const itemType = q.type === 'multi' ? 'multi' : 'single';
+
+            // 检查是否需要添加分组标题
+            if (currentSection !== itemType) {
+                currentSection = itemType;
+                const totalCount = itemType === 'multi' ? multiQuestions.length : singleQuestions.length;
+                const title = itemType === 'multi' ? '多选题' : '单选题';
+                html += `<div class="nav-modal-section-title">${title} (${totalCount}题)</div>`;
+                html += '<div class="nav-modal-grid">';
             }
-            
-            // 开始新分组
-            currentSection = itemType;
-            const totalCount = itemType === 'multi' ? multiQuestions.length : singleQuestions.length;
-            const title = itemType === 'multi' ? '多选题' : '单选题';
-            html += `<div class="nav-section"><div class="nav-section-title ${itemType === 'multi' ? 'multi' : ''}">${title} (${totalCount}题)</div>`;
-            html += '<div class="nav-section-grid">';
-        }
-        
-        const result = questionResults[item.index];
-        let statusClass = '';
-        if (result?.answered) {
-            // 已提交答案
-            if (isExamMode) {
-                // 模拟考试模式：仅标记已答（蓝色）
-                statusClass = 'answered';
-            } else if (result.isCorrect === true) {
-                statusClass = 'answered correct';
-            } else if (result.isCorrect === false) {
-                statusClass = 'answered wrong';
-            } else {
-                statusClass = 'answered';
+
+            const result = questionResults[i];
+            let statusClass = '';
+            if (result?.answered) {
+                if (isExamMode) {
+                    statusClass = 'answered';
+                } else if (result.isCorrect === true) {
+                    statusClass = 'correct';
+                } else if (result.isCorrect === false) {
+                    statusClass = 'wrong';
+                } else {
+                    statusClass = 'answered';
+                }
+            } else if (result?.userAnswer?.length > 0) {
+                statusClass = 'selected';
             }
-        } else if (result?.userAnswer?.length > 0) {
-            // 已选择但未提交（蓝色）
-            statusClass = 'selected';
+            const current = i === currentQuestionIndex ? 'current' : '';
+            html += `<button class="nav-modal-btn ${statusClass} ${current}" onclick="goToQuestion(${i}); closeNavModal();">${i + 1}</button>`;
+        });
+
+        // 关闭最后一个分组
+        if (currentSection !== null) {
+            html += '</div>';
         }
-        const current = item.index === currentQuestionIndex ? 'current' : '';
-        const multiClass = item.question.type === 'multi' ? 'multi' : '';
-        html += `<button class="nav-btn ${multiClass} ${statusClass} ${current}" onclick="goToQuestion(${item.index})">${item.index + 1}</button>`;
-    });
-    
-    // 关闭最后一个分组
-    if (currentSection !== null) {
-        html += '</div></div>';
+    } else {
+        // 桌面端：保持原有的分页逻辑
+        const allItems = [...singleQuestions, ...multiQuestions];
+        const totalPages = Math.ceil(allItems.length / NAV_PAGE_SIZE);
+
+        if (navCurrentPage < 1) navCurrentPage = 1;
+        if (navCurrentPage > totalPages) navCurrentPage = totalPages;
+        if (totalPages === 0) navCurrentPage = 1;
+
+        if (!manualNavPageChange) {
+            const currentItemIndex = allItems.findIndex(item => item.index === currentQuestionIndex);
+            if (currentItemIndex >= 0) {
+                const targetPage = Math.floor(currentItemIndex / NAV_PAGE_SIZE) + 1;
+                if (targetPage !== navCurrentPage) {
+                    navCurrentPage = targetPage;
+                }
+            }
+        }
+
+        const startIdx = (navCurrentPage - 1) * NAV_PAGE_SIZE;
+        const endIdx = Math.min(startIdx + NAV_PAGE_SIZE, allItems.length);
+        const pageItems = allItems.slice(startIdx, endIdx);
+
+        // 分页控制
+        if (totalPages > 1) {
+            html += '<div class="nav-pagination">';
+            html += `<button class="nav-page-btn ${navCurrentPage <= 1 ? 'disabled' : ''}" onclick="changeNavPage(${navCurrentPage - 1})" ${navCurrentPage <= 1 ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
+            for (let p = 1; p <= totalPages; p++) {
+                const active = p === navCurrentPage ? 'active' : '';
+                html += `<button class="nav-page-num ${active}" onclick="changeNavPage(${p})">${p}</button>`;
+            }
+            html += `<button class="nav-page-btn ${navCurrentPage >= totalPages ? 'disabled' : ''}" onclick="changeNavPage(${navCurrentPage + 1})" ${navCurrentPage >= totalPages ? 'disabled' : ''}><i class="fas fa-chevron-right"></i></button>`;
+            html += '</div>';
+        }
+
+        let currentSection = null;
+        pageItems.forEach((item) => {
+            const itemType = item.question.type === 'multi' ? 'multi' : 'single';
+
+            if (currentSection !== itemType) {
+                if (currentSection !== null) {
+                    html += '</div></div>';
+                }
+                currentSection = itemType;
+                const totalCount = itemType === 'multi' ? multiQuestions.length : singleQuestions.length;
+                const title = itemType === 'multi' ? '多选题' : '单选题';
+                html += `<div class="nav-section"><div class="nav-section-title ${itemType === 'multi' ? 'multi' : ''}">${title} (${totalCount}题)</div>`;
+                html += '<div class="nav-section-grid">';
+            }
+
+            const result = questionResults[item.index];
+            let statusClass = '';
+            if (result?.answered) {
+                if (isExamMode) {
+                    statusClass = 'answered';
+                } else if (result.isCorrect === true) {
+                    statusClass = 'answered correct';
+                } else if (result.isCorrect === false) {
+                    statusClass = 'answered wrong';
+                } else {
+                    statusClass = 'answered';
+                }
+            } else if (result?.userAnswer?.length > 0) {
+                statusClass = 'selected';
+            }
+            const current = item.index === currentQuestionIndex ? 'current' : '';
+            const multiClass = item.question.type === 'multi' ? 'multi' : '';
+            html += `<button class="nav-btn ${multiClass} ${statusClass} ${current}" onclick="goToQuestion(${item.index})">${item.index + 1}</button>`;
+        });
+
+        if (currentSection !== null) {
+            html += '</div></div>';
+        }
     }
-    
-    grid.innerHTML = html;
-    
+
+    targetContainer.innerHTML = html;
+
     // 更新已答题数
     const answeredCount = questionResults.filter(r => r.answered).length;
-    document.getElementById('answered-count').textContent = answeredCount;
-    document.getElementById('nav-total').textContent = practiceQuestions.length;
+
+    if (isMobile) {
+        // 移动端：更新按钮徽章
+        const navBadge = document.getElementById('nav-badge');
+        if (navBadge) {
+            navBadge.textContent = `${answeredCount}/${practiceQuestions.length}`;
+        }
+    } else {
+        // 桌面端：更新侧边栏统计
+        const answeredCountEl = document.getElementById('answered-count');
+        const navTotalEl = document.getElementById('nav-total');
+        if (answeredCountEl) answeredCountEl.textContent = answeredCount;
+        if (navTotalEl) navTotalEl.textContent = practiceQuestions.length;
+    }
 }
 
 // 切换答题卡页面
@@ -402,6 +495,36 @@ function changeNavPage(page) {
         manualNavPageChange = false; // 渲染完成后重置
     }
 }
+
+// 打开答题卡模态框（移动端）
+function openNavModal() {
+    const modal = document.getElementById('nav-modal');
+    if (modal) {
+        modal.classList.add('active');
+
+        // 阻止背景滚动
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+// 关闭答题卡模态框（移动端）
+function closeNavModal() {
+    const modal = document.getElementById('nav-modal');
+    if (modal) {
+        modal.classList.remove('active');
+
+        // 恢复背景滚动
+        document.body.style.overflow = '';
+    }
+}
+
+// 点击模态框背景关闭
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('nav-modal');
+    if (modal && e.target === modal) {
+        closeNavModal();
+    }
+});
 
 // 跳转到指定题目
 function goToQuestion(index) {
@@ -441,17 +564,31 @@ function updateTimerDisplay() {
     }
 }
 
+// 更新进度条可视化宽度
+function updateProgressBarWidth() {
+    const headerInfo = document.querySelector('.practice-header-info');
+    if (!headerInfo) return;
+
+    const answered = questionResults.filter(r => r.answered).length;
+    const total = practiceQuestions.length;
+    const progress = total > 0 ? (answered / total) * 100 : 0;
+
+    headerInfo.style.setProperty('--progress-width', `${progress}%`);
+}
+
 // 渲染题目
 function renderQuestion() {
     const question = practiceQuestions[currentQuestionIndex];
     const result = questionResults[currentQuestionIndex];
-    
+
     // 更新进度
     document.getElementById('current-index').textContent = currentQuestionIndex + 1;
     document.getElementById('total-count').textContent = practiceQuestions.length;
     document.getElementById('correct-num').textContent = correctCount;
     document.getElementById('wrong-num').textContent = wrongCount;
-    
+
+    // 更新进度条可视化宽度
+    updateProgressBarWidth();
     // 渲染题目
     document.getElementById('question-type').textContent = question.type === 'multi' ? '多选题' : '单选题';
     document.getElementById('question-type').className = `question-type ${question.type === 'multi' ? 'multi' : ''}`;
@@ -544,9 +681,9 @@ function renderQuestion() {
 // 选择选项
 function selectOption(key, isMulti) {
     const btn = document.querySelector(`.option-btn[data-key="${key}"]`);
-    
+
     if (btn.classList.contains('disabled')) return;
-    
+
     if (isMulti) {
         // 多选题
         if (selectedAnswers.includes(key)) {
@@ -562,7 +699,7 @@ function selectOption(key, isMulti) {
         btn.classList.add('selected');
         selectedAnswers = [key];
     }
-    
+
     // 模拟考试模式：自动保存选择的答案（不判分）
     if (isExamMode && selectedAnswers.length > 0) {
         saveExamAnswer();
@@ -630,15 +767,15 @@ async function submitAnswer() {
         showToast('请选择答案', 'warning');
         return;
     }
-    
+
     const question = practiceQuestions[currentQuestionIndex];
-    
+
     // 使用打乱后的答案（如果有），否则使用原始答案
     const correctAnswer = question.shuffledAnswer || question.answer || [];
-    
+
     // 在前端判断答案是否正确
     const isCorrect = arraysEqual([...selectedAnswers].sort(), [...correctAnswer].sort());
-    
+
     // 保存作答结果
     questionResults[currentQuestionIndex] = {
         answered: true,
@@ -646,25 +783,28 @@ async function submitAnswer() {
         correctAnswer: correctAnswer,
         isCorrect: isCorrect
     };
-    
-    // 如果答错，添加到错题本
+
+    // 如果答错，添加到错题本；如果答对且是错题模式，从错题本移除
     if (!isCorrect) {
         addToWrongbook(question, selectedAnswers);
+    } else if (currentPracticeMode === 'wrong') {
+        // 答对了，从错题本中移除
+        removeFromWrongbook(question.id);
     }
-    
+
     if (isExamMode) {
         // 模拟考试模式：不显示答案，只标记已答
         document.querySelectorAll('.option-btn').forEach(btn => {
             btn.classList.add('disabled');
         });
-        
+
         // 更新导航
         renderQuestionNav();
-        
+
         // 切换按钮
         document.getElementById('submit-btn').style.display = 'none';
         document.getElementById('next-btn').style.display = 'inline-flex';
-        
+
         if (currentQuestionIndex === practiceQuestions.length - 1) {
             document.getElementById('next-btn').innerHTML = '提交试卷 <i class="fas fa-paper-plane"></i>';
         } else {
@@ -675,18 +815,18 @@ async function submitAnswer() {
         document.querySelectorAll('.option-btn').forEach(btn => {
             btn.classList.add('disabled');
             const key = btn.dataset.key;
-            
+
             if (correctAnswer.includes(key)) {
                 btn.classList.add('correct');
             } else if (selectedAnswers.includes(key)) {
                 btn.classList.add('wrong');
             }
         });
-        
+
         // 隐藏结果提示框（只通过选项颜色表示正误）
         const resultDiv = document.getElementById('answer-result');
         resultDiv.style.display = 'none';
-        
+
         if (isCorrect) {
             correctCount++;
         } else {
@@ -770,7 +910,19 @@ function showPracticeResult() {
         clearInterval(practiceTimer);
         practiceTimer = null;
     }
-    
+
+    // 退出刷题模式，显示底部标签栏
+    document.body.classList.remove('practice-mode');
+
+    // 隐藏答题卡按钮
+    const navTriggerBtn = document.getElementById('nav-trigger-btn');
+    if (navTriggerBtn) {
+        navTriggerBtn.style.display = 'none';
+    }
+
+    // 关闭答题卡模态框
+    closeNavModal();
+
     // 计算用时：当前会话时间 + 之前读档的时间
     const endTime = new Date();
     const currentSessionTime = Math.floor((endTime - practiceStartTime) / 1000); // 秒
@@ -807,17 +959,9 @@ function showPracticeResult() {
     // 默认显示第一题
     showResultQuestion(0);
     
-    // 保存成绩到排名
+    // 保存成绩记录
     const playerName = document.getElementById('player-name')?.value?.trim() || '匿名';
-    saveRanking({
-        name: playerName,
-        total: total,
-        correct: correctCount,
-        wrong: wrongCount,
-        accuracy: rate,
-        time_spent: timeSpent,
-        time_display: timeDisplay
-    });
+    console.log(`练习完成: ${playerName} - 正确${correctCount}题，错误${wrongCount}题，正确率${rate}%，用时${timeDisplay}`);
 }
 
 // 渲染结果页题目导航

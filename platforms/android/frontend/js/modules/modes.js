@@ -11,10 +11,22 @@ function onPracticeModeChange() {
     const startBtn = document.getElementById('start-practice-btn');
     const singleCountInput = document.getElementById('practice-single-count');
     const multiCountInput = document.getElementById('practice-multi-count');
+    const singleCountLabel = singleCountInput?.closest('.config-row');
+    const multiCountLabel = multiCountInput?.closest('.config-row');
     
-    // 顺序做题模式显示打乱题目选项
+    // 顺序做题模式显示打乱题目选项，隐藏数量配置
     if (shuffleQuestionsRow) {
         shuffleQuestionsRow.style.display = mode === 'sequence' ? 'block' : 'none';
+    }
+    
+    // 顺序做题模式：隐藏数量输入框
+    if (mode === 'sequence') {
+        if (singleCountLabel) singleCountLabel.style.display = 'none';
+        if (multiCountLabel) multiCountLabel.style.display = 'none';
+    } else {
+        // 其他模式：显示数量输入框
+        if (singleCountLabel) singleCountLabel.style.display = 'flex';
+        if (multiCountLabel) multiCountLabel.style.display = 'flex';
     }
     
     // 更新按钮文字
@@ -229,10 +241,7 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     const navPanel = document.getElementById('question-nav-panel');
     navPanel.style.display = 'block';
     navPanel.classList.remove('collapsed'); // 移除折叠状态即展开
-    
-    // 进入刷题后折叠排行榜面板
-    document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
-    
+
     // 设置模式标识
     const modeBadge = document.getElementById('practice-mode-badge');
     const modeTexts = {

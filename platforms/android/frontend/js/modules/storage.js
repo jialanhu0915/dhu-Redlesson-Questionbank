@@ -17,12 +17,11 @@ class StorageService {
 
     initDexie() {
         this.db = new Dexie('RedLessonDB');
-        this.db.version(1).stores({
+        this.db.version(2).stores({
             banks: '&name', // 题库列表，name 唯一
             questions: 'id, bank, chapter, type', // 题目表
             wrongbook: '++id, bank, question_id, [bank+question_id]', // 错题本
-            rankings: '++id, bank, score, date', // 排行榜
-            progress: 'id, bank' // 进度
+            progress: '++id, bank, mode, chapter' // 进度（自增主键，添加索引）
         });
         console.log('IndexedDB initialized for Mobile/Offline mode');
     }
@@ -102,7 +101,9 @@ class StorageService {
             return await window.electronAPI.practiceRandom(params);
         } else if (this.isMobile) {
             try {
-                let collection = this.db.questions.where('bank').equals(params.bank);
+                let collection = params.bank ? 
+                    this.db.questions.where('bank').equals(params.bank) :
+                    this.db.questions.toCollection();
                 let questions = await collection.toArray();
 
                 if (params.chapter && params.chapter !== 'all') {
@@ -153,7 +154,10 @@ class StorageService {
             return await window.electronAPI.practiceSequence(params);
         } else if (this.isMobile) {
             try {
-                let questions = await this.db.questions.where('bank').equals(params.bank).toArray();
+                let collection = params.bank ?
+                    this.db.questions.where('bank').equals(params.bank) :
+                    this.db.questions.toCollection();
+                let questions = await collection.toArray();
                 
                 if (params.chapter && params.chapter !== 'all') {
                     questions = questions.filter(q => q.chapter === params.chapter);
@@ -183,7 +187,9 @@ class StorageService {
             return await window.electronAPI.practiceWrong(params);
         } else if (this.isMobile) {
             try {
-                const wrongEntries = await this.db.wrongbook.where('bank').equals(params.bank).toArray();
+                const wrongEntries = params.bank ?
+                    await this.db.wrongbook.where('bank').equals(params.bank).toArray() :
+                    await this.db.wrongbook.toArray();
                 const questionIds = wrongEntries.map(w => w.question_id);
                 
                 let questions = await this.db.questions.where('id').anyOf(questionIds).toArray();
@@ -482,56 +488,6 @@ class StorageService {
         }
     }
 
-    // ================== 排行榜 ==================
-    async getRankings() {
-        if (this.isElectron) {
-            return await window.electronAPI.getRankings();
-        } else if (this.isMobile) {
-            try {
-                const rankings = await this.db.rankings.orderBy('date').reverse().limit(50).toArray();
-                return { success: true, rankings: rankings };
-            } catch (e) { return { success: false, error: e.message }; }
-        } else {
-            const response = await fetch('/api/rankings');
-            return await response.json();
-        }
-    }
-    
-    async saveRanking(data) {
-        if (this.isElectron) {
-            return await window.electronAPI.saveRanking(data);
-        } else if (this.isMobile) {
-             try {
-                 await this.db.rankings.add({
-                     ...data,
-                     date: new Date()
-                 });
-                 return { success: true };
-             } catch (e) { return { success: false, error: e.message }; }
-        } else {
-            const response = await fetch('/api/rankings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            return await response.json();
-        }
-    }
-    
-    async clearRankings() {
-         if (this.isElectron) {
-            return await window.electronAPI.clearRankings();
-        } else if (this.isMobile) {
-             try {
-                 await this.db.rankings.clear();
-                 return { success: true };
-             } catch (e) { return { success: false, error: e.message }; }
-        } else {
-             const response = await fetch('/api/rankings', { method: 'DELETE' });
-             return await response.json();
-        }
-    }
-
     // ================== 进度存档 ==================
     async getProgress() {
         if (this.isElectron) {
@@ -565,14 +521,36 @@ class StorageService {
     async saveProgress(data) {
         if (this.isElectron) {
             return await window.electronAPI.saveProgress(data);
-        } else if (this.isMobile) {
-             try {
-                 const id = await this.db.progress.put({
-                     ...data,
-                     date: new Date()
-                 });
-                 return { success: true, id: id };
-             } catch (e) { return { success: false, error: e.message }; }
+         } else if (this.isMobile) {
+              try {
+                  // 创建进度记录对象
+                  const progressRecord = {
+                      mode: data.mode,
+                      bank: data.bank,
+                      chapter: data.chapter,
+                      current_index: data.current_index,
+                      total: data.total,
+                      correct: data.correct,
+                      wrong: data.wrong,
+                      question_ids: data.question_ids,
+                      question_results: data.question_results,
+                      remaining_time: data.remaining_time,
+                      elapsed_time: data.elapsed_time,
+                      date: new Date()
+                  };
+
+                  // 只有在覆盖已有进度时才设置 id
+                  // 新建进度时不设置 id，让 Dexie 自动生成自增 ID
+                  if (data.progress_id) {
+                      progressRecord.id = data.progress_id;
+                  }
+
+                  const id = await this.db.progress.put(progressRecord);
+                  return { success: true, id: id };
+              } catch (e) {
+                  console.error('保存进度失败:', e);
+                  return { success: false, error: e.message };
+              }
         } else {
             const response = await fetch('/api/progress', {
                 method: 'POST',

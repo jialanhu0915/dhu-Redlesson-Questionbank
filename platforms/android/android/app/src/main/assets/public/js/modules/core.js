@@ -2,24 +2,6 @@
  * 核心功能模块 - 初始化、导航、服务器健康检查
  */
 
-// 初始化
-document.addEventListener('DOMContentLoaded', function() {
-    initNavigation();
-    initUpload();
-
-    // 只在非离线模式下加载统计数据
-    if (!isOffline) {
-        loadStats();
-    } else {
-        console.log('离线模式，跳过统计API加载');
-    }
-
-    document.body.setAttribute('data-page', 'dashboard');
-
-    window.changeNavPage = changeNavPage;
-    window.togglePanel = togglePanel;
-});
-
 // 面板折叠功能
 function togglePanel(panelId) {
     const panel = document.getElementById(panelId);
@@ -46,19 +28,24 @@ function switchPage(page) {
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.page === page);
     });
-    
+
+    // 更新底部标签栏激活状态（移动端）
+    if (typeof updateBottomTabBar === 'function') {
+        updateBottomTabBar(page);
+    }
+
     document.querySelectorAll('.page').forEach(p => {
         p.classList.remove('active');
     });
     document.getElementById(`${page}-page`).classList.add('active');
-    
+
     currentPage = page;
     document.body.setAttribute('data-page', page);
     
     switch(page) {
         case 'dashboard':
             loadStats();
-            loadBankChapters();
+            loadProgressForDashboard();
             break;
         case 'manage':
             loadBanks();
@@ -69,7 +56,6 @@ function switchPage(page) {
         case 'practice':
             loadPracticeOptions();
             showPracticeSettings();
-            loadRankings();
             loadProgressList();
             break;
     }

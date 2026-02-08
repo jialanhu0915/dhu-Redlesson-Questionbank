@@ -6,6 +6,11 @@ function initUpload() {
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('file-input');
 
+    if (!uploadArea || !fileInput) {
+        console.warn('上传区域或文件输入框未找到，跳过初始化');
+        return;
+    }
+
     if (isElectron) {
         // Electron 环境：点击上传区域时打开文件对话框
         uploadArea.addEventListener('click', async () => {
@@ -108,7 +113,18 @@ function clearFile() {
 }
 
 async function importFile() {
-    const bankName = document.getElementById('bank-name').value.trim();
+    let bankName = document.getElementById('bank-name').value.trim();
+    const fileInput = document.getElementById('file-input');
+    
+    // 自动识别题库名称（如果未输入）
+    if (!bankName && fileInput.files.length > 0) {
+        const fileName = fileInput.files[0].name;
+        // 移除文件扩展名
+        bankName = fileName.replace(/\.[^/.]+$/, '');
+        // 移除常见的后缀（如"题库"、"习题"等）
+        bankName = bankName.replace(/(题库|习题|试题|题目|刷题)$/g, '');
+        console.log('自动识别题库名称:', bankName);
+    }
 
     // 1. Electron 环境 (调用内嵌 Python 解析)
     if (isElectron) {
@@ -134,15 +150,8 @@ async function importFile() {
     } 
     // 2. 移动端/离线环境 (前端 JS 解析 + IndexedDB 存储)
     else if (window.storageService && window.storageService.isMobile) {
-        const fileInput = document.getElementById('file-input');
-        
         if (!fileInput.files.length) {
             showToast('请先选择文件', 'error');
-            return;
-        }
-
-        if (!bankName) {
-            showToast('请输入题库名称', 'error');
             return;
         }
 
@@ -160,8 +169,9 @@ async function importFile() {
                 throw new Error("未能解析出题目，请检查文件格式");
             }
 
-            // B. 存入 IndexedDB
-            const result = await window.storageService.importQuestions(bankName, questions);
+            // B. 存入 IndexedDB（使用唯一ID避免重名冲突）
+            const uniqueBankName = bankName + '_' + Date.now().toString().slice(-6);
+            const result = await window.storageService.importQuestions(uniqueBankName, questions);
             
             if (result.success) {
                 handleImportSuccess({ 
@@ -236,9 +246,22 @@ function handleImportError(error) {
     document.getElementById('import-progress').style.display = 'none';
     const resultDiv = document.getElementById('import-result');
     resultDiv.style.display = 'block';
-    
+
     const msg = error.message || error.toString();
     resultDiv.className = 'import-result error';
+    resultDiv.style.background = '#ffebee';
+    resultDiv.style.color = '#c62828';
     resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${msg}`;
     showToast('导入失败: ' + msg, 'error');
+}
+
+function importFileSimple() {
+    document.getElementById('file-input').click();
+}
+
+function goToManageAndImport() {
+    switchPage('manage');
+    setTimeout(() => {
+        importFileSimple();
+    }, 300);
 }
