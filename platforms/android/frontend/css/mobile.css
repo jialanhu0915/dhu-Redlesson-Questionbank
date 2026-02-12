@@ -306,6 +306,7 @@ body.practice-mode .bottom-tab-bar {
 @media screen and (max-width: 768px) {
     .main-content {
         padding-bottom: 60px;
+        padding-top: calc(8px + env(safe-area-inset-top));
     }
 
     /* 隐藏移动端菜单按钮和返回按钮（使用底部标签栏替代） */
@@ -582,17 +583,16 @@ body.remote-mode .question-item .btn-danger {
         flex-direction: column;
         gap: 0;
         margin-bottom: 4px;
-        margin-top: 0;
         padding-top: 0;
     }
 
-    /* 隐藏标题时不占用空间 */
     .practice-page-header h1 {
         font-size: 16px;
         margin-bottom: 0;
         margin-top: 0;
     }
 
+    /* 隐藏标题时不占用空间 */
     .practice-page-header h1[style*="display: none"] {
         height: 0;
         margin: 0;
@@ -723,7 +723,61 @@ body.remote-mode .question-item .btn-danger {
     }
     
     .settings-card {
-        padding: 15px;
+        padding: 12px;
+    }
+
+    /* 刷题设置页面 - 紧凑布局 */
+    .practice-settings {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .settings-card h3 {
+        margin-bottom: 8px;
+        font-size: 13px;
+    }
+
+    .settings-row-top,
+    .settings-row-bottom {
+        gap: 10px;
+    }
+
+    .question-config,
+    .timer-config {
+        gap: 8px;
+    }
+
+    .config-row {
+        gap: 8px;
+    }
+
+    .config-row label {
+        font-size: 13px;
+    }
+
+    .config-row input[type="number"] {
+        width: 60px;
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+
+    .stats-preview .preview-content {
+        font-size: 12px;
+    }
+
+    .stats-preview .preview-content p {
+        margin-bottom: 4px;
+    }
+
+    /* 开始刷题按钮 */
+    .practice-start-btn {
+        padding: 12px 20px;
+        margin-top: 8px;
+    }
+
+    .practice-start-btn .btn-large {
+        padding: 14px 24px;
+        font-size: 15px;
     }
     
     /* 题目显示 */
@@ -1210,8 +1264,8 @@ body.remote-mode .question-item .btn-danger {
     /* 开始刷题按钮 */
     .practice-start-btn {
         width: 100%;
-        padding: 15px 30px;
-        font-size: 16px;
+        padding: 12px 20px;
+        font-size: 15px;
     }
     
     /* 弹窗 - 确认弹窗使用小窗口 */

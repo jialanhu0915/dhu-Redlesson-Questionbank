@@ -13,8 +13,7 @@ function savePracticeSettingsToLocal() {
         enableTimer: document.getElementById('enable-timer').checked,
         practiceTime: document.getElementById('practice-time').value,
         shuffleOptions: document.getElementById('shuffle-options').checked,
-        shuffleQuestions: document.getElementById('shuffle-questions')?.checked || false,
-        playerName: document.getElementById('player-name').value
+        shuffleQuestions: document.getElementById('shuffle-questions')?.checked || false
     };
     localStorage.setItem(PRACTICE_SETTINGS_KEY, JSON.stringify(settings));
 }
@@ -56,9 +55,6 @@ function loadPracticeSettingsFromLocal() {
             }
             if (document.getElementById('shuffle-questions')) {
                 document.getElementById('shuffle-questions').checked = settings.shuffleQuestions || false;
-            }
-            if (document.getElementById('player-name')) {
-                document.getElementById('player-name').value = settings.playerName || '匿名';
             }
             
             console.log('已恢复练习设置');

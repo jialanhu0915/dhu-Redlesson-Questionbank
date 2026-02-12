@@ -602,7 +602,7 @@ class StorageService {
                 const batch = questions.map((q, idx) => ({
                     ...q,
                     bank: bankName,
-                    id: `local_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`
+                    id: `local_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`
                 }));
 
                 // 3. 批量添加
@@ -617,5 +617,7 @@ class StorageService {
     }
 }
 
-// 导出全局实例
-window.storageService = new StorageService();
+// 导出全局实例（如果已存在则不覆盖）
+if (!window.storageService) {
+    window.storageService = new StorageService();
+}

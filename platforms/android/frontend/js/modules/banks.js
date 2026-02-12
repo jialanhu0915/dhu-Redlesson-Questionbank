@@ -46,9 +46,6 @@ async function loadBanks() {
             `;
         }
         
-        // 隐藏题目浏览器
-        document.getElementById('question-browser').style.display = 'none';
-        document.getElementById('bank-list').style.display = 'grid';
     } catch (error) {
         console.error('加载题库列表失败:', error);
         showToast('加载题库列表失败', 'error');
@@ -57,16 +54,16 @@ async function loadBanks() {
 
 // 显示题库列表
 function showBankList() {
-    document.getElementById('question-browser').style.display = 'none';
-    document.getElementById('bank-list').style.display = 'grid';
+    switchPage('manage');
 }
 
 // 浏览题库
 async function browseBank(bankName) {
     currentBankName = bankName;
     document.getElementById('current-bank-name').textContent = bankName;
-    document.getElementById('bank-list').style.display = 'none';
-    document.getElementById('question-browser').style.display = 'block';
+    
+    // 切换到浏览页面
+    switchPage('browser');
     
     // 加载章节列表
     await loadChapters(bankName);
