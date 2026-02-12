@@ -139,6 +139,9 @@ function showPracticeSettings() {
     document.getElementById('practice-header-info').style.display = 'none';
     document.getElementById('question-nav-panel').style.display = 'none';
     document.getElementById('practice-title').style.display = 'block';
+    
+    // 隐藏整个头部区域（移动端）
+    document.querySelector('.practice-page-header').style.display = 'none';
 
     // 停止计时器
     if (practiceTimer) {
@@ -223,6 +226,9 @@ async function startPractice(examMode = false) {
             document.getElementById('practice-result').style.display = 'none';
             document.getElementById('practice-header-info').style.display = 'flex';
             document.getElementById('practice-title').style.display = 'none';
+            
+            // 显示整个头部区域（移动端）
+            document.querySelector('.practice-page-header').style.display = 'flex';
 
             // 进入刷题模式，隐藏底部标签栏
             document.body.classList.add('practice-mode');
@@ -232,6 +238,9 @@ async function startPractice(examMode = false) {
             navPanel.style.display = 'block';
             navPanel.classList.remove('collapsed');
             navPanel.classList.add('expanded');
+
+            // 显示答题卡按钮（移动端）
+            document.getElementById('nav-trigger-btn').style.display = 'flex';
 
             // 设置模式标识
             const modeBadge = document.getElementById('practice-mode-badge');

@@ -237,10 +237,16 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     document.getElementById('practice-result').style.display = 'none';
     document.getElementById('practice-header-info').style.display = 'flex';
     
+    // 显示整个头部区域（移动端）
+    document.querySelector('.practice-page-header').style.display = 'flex';
+    
     // 显示并展开答题卡
     const navPanel = document.getElementById('question-nav-panel');
     navPanel.style.display = 'block';
     navPanel.classList.remove('collapsed'); // 移除折叠状态即展开
+
+    // 显示答题卡按钮（移动端）
+    document.getElementById('nav-trigger-btn').style.display = 'flex';
 
     // 设置模式标识
     const modeBadge = document.getElementById('practice-mode-badge');
