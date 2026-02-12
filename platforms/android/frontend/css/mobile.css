@@ -709,7 +709,7 @@ body.remote-mode .question-item .btn-danger {
     }
     
     .practice-main {
-        padding-top: 58px;  /* 为固定进度条预留空间 */
+        padding-top: 10px;  /* 为固定进度条预留空间 */
         padding-left: 10px;
         padding-right: 10px;
         padding-bottom: 10px;
