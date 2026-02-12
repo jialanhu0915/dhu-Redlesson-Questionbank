@@ -56,7 +56,7 @@ cd platforms/web
 python static-site/export_data.py
 ```
 
-### Electron 桌面应用（计划中）
+### Electron 桌面应用
 
 > 详细计划参考 [docs/ELECTRON_PLAN.md](docs/ELECTRON_PLAN.md)
 
@@ -64,9 +64,12 @@ python static-site/export_data.py
 cd platforms/electron
 npm install
 npm run dev          # 开发模式
-npm run build:win    # 打包 Windows
-npm run build:mac    # 打包 macOS
+npm run setup-python # 下载并配置嵌入式 Python（首次运行）
+npm run build:win   # 打包 Windows
+npm run build:mac   # 打包 macOS
 ```
+
+**当前状态**: 基础功能已完成，支持 Windows/macOS 打包，CI/CD 自动构建已配置。
 
 ### Android 应用开发
 
@@ -80,6 +83,8 @@ npx cap sync android
 # 打开 platforms/android/android/ 目录
 # Build > Build Bundle(s) / APK(s) > Build APK(s)
 ```
+
+**当前状态**: 已完成，支持 Capacitor 8.x，CI/CD 自动构建已配置
 
 ### 测试命令
 
@@ -110,11 +115,14 @@ dhu-Redlesson-Questionbank/
 │   │   ├── backend/          # Flask后端
 │   │   ├── frontend/         # Web前端
 │   │   └── static-site/      # 静态站点生成
-│   ├── electron/              # 桌面版本 (Electron)
+│   ├── electron/              # 桌面版本 (Electron + Python)
 │   │   ├── main.js           # Electron主进程
 │   │   ├── preload.js        # IPC脚本
-│   │   ├── package.json
-│   │   └── build/            # 打包配置
+│   │   ├── python_parser.py  # Python解析器
+│   │   ├── models/           # Node.js数据模型
+│   │   ├── frontend/         # Electron专用前端
+│   │   ├── scripts/          # Python下载脚本
+│   │   └── package.json
 │   └── android/               # Android版本 (Capacitor)
 │       └── android/          # Native Android Project
 ├── .github/                   # CI/CD配置
@@ -140,6 +148,10 @@ dhu-Redlesson-Questionbank/
 | 刷题API | `platforms/web/backend/routes/practice.py:1` | 练习逻辑API |
 | 前端主逻辑 | `platforms/web/frontend/js/app.js:1` | 页面路由和逻辑 |
 | 练习模块 | `platforms/web/frontend/js/modules/practice.js:1` | 答题核心逻辑 |
+| Electron主进程 | `platforms/electron/main.js:1` | 窗口和IPC管理 |
+| Electron预加载 | `platforms/electron/preload.js:1` | 桥接脚本 |
+| Electron数据模型 | `platforms/electron/models/index.js:1` | Node.js数据模型 |
+| Python解析器 | `platforms/electron/python_parser.py:1` | Word文档解析 |
 | Android 前端源码 | `platforms/android/frontend/` | Capacitor 源代码目录 |
 | Android 构建产物 | `platforms/android/android/app/src/main/assets/public/` | 由 sync 生成，Git 忽略 |
 
