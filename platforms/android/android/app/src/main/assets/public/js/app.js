@@ -35,27 +35,28 @@ const NAV_PAGE_SIZE = 56; // 答题卡每页显示数量
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async function() {
     initNavigation();
+    initFeaturesCarousel();
     initUpload();
 
-    // Electron 环境特殊处理
     if (isElectron) {
         serverOnline = true;
         await loadStats();
+    } else if (window.storageService && window.storageService.isMobile) {
+        await loadPresetData();
     }
 
     await loadConfig();
 
-    // Electron 环境不需要健康检查
     if (!isElectron) {
         startHealthCheck();
     }
 
-    // 设置初始页面属性
     document.body.setAttribute('data-page', 'dashboard');
 
-    // 暴露函数到全局作用域（用于onclick调用）
     window.changeNavPage = changeNavPage;
     window.togglePanel = togglePanel;
+
+    initAnimations();
 });
 
 // ==================== 面板折叠功能 ====================
@@ -152,17 +153,39 @@ function hideServerError() {
 
 // ==================== 导航 ====================
 function initNavigation() {
-    document.querySelectorAll('.nav-item').forEach(item => {
+    document.querySelectorAll('.nav-link').forEach(item => {
         item.addEventListener('click', function() {
             const page = this.dataset.page;
             switchPage(page);
+            closeMobileNav();
         });
     });
+
+    var menuBtn = document.querySelector('.mobile-menu-btn');
+    if (menuBtn) {
+        menuBtn.addEventListener('click', function() {
+            toggleMobileNav();
+        });
+    }
+}
+
+function toggleMobileNav() {
+    var links = document.querySelector('.nav-links');
+    var btn = document.querySelector('.mobile-menu-btn');
+    if (!links) return;
+    links.classList.toggle('mobile-open');
+    if (btn) btn.classList.toggle('active');
+}
+
+function closeMobileNav() {
+    var links = document.querySelector('.nav-links');
+    var btn = document.querySelector('.mobile-menu-btn');
+    if (links) links.classList.remove('mobile-open');
+    if (btn) btn.classList.remove('active');
 }
 
 function switchPage(page) {
-    // 更新导航状态
-    document.querySelectorAll('.nav-item').forEach(item => {
+    document.querySelectorAll('.nav-link').forEach(item => {
         item.classList.toggle('active', item.dataset.page === page);
     });
     
@@ -174,14 +197,17 @@ function switchPage(page) {
     
     currentPage = page;
     
-    // 更新 body 的 data-page 属性（用于CSS选择器）
     document.body.setAttribute('data-page', page);
     
-    // 加载页面数据
+    if (page === 'dashboard') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     switch(page) {
         case 'dashboard':
             loadStats();
             loadBankChapters();
+            resetScrollReveal();
             break;
         case 'manage':
             loadBanks();
@@ -216,6 +242,84 @@ async function loadStats() {
         }
     } catch (error) {
         console.error('加载统计数据失败:', error);
+    }
+    loadWrongBookOverview();
+}
+
+// 首次启动自动导入预置题库
+async function loadPresetData() {
+    try {
+        var banks = await window.storageService.getBanks();
+        if (banks.success && banks.banks && banks.banks.length > 0) {
+            console.log('已有题库数据，跳过预置导入');
+            await loadStats();
+            return;
+        }
+    } catch (e) {
+        console.warn('检查已有题库失败，尝试导入预置数据:', e);
+    }
+
+    try {
+        var resp = await fetch('data/preset.json');
+        if (!resp.ok) {
+            console.warn('预置题库文件不存在 (data/preset.json)');
+            return;
+        }
+        var preset = await resp.json();
+
+        var bankNames = Object.keys(preset);
+        console.log('开始导入预置题库:', bankNames.length, '个题库');
+
+        var totalImported = 0;
+        for (var i = 0; i < bankNames.length; i++) {
+            var bankName = bankNames[i];
+            var bankData = preset[bankName];
+            var questions = bankData.questions || bankData;
+
+            if (questions.length === 0) continue;
+
+            var result = await window.storageService.importQuestions(bankName, questions);
+            if (result.success) {
+                totalImported += result.count;
+                console.log('  导入:', bankName, '-', result.count, '题');
+            } else {
+                console.warn('  导入失败:', bankName, result.error);
+            }
+        }
+        console.log('预置题库导入完成，共', totalImported, '题');
+
+        if (totalImported > 0) {
+            if (typeof showToast === 'function') {
+                showToast('预置题库已加载: ' + totalImported + ' 道题', 'success');
+            }
+        }
+    } catch (e) {
+        console.error('预置题库导入失败:', e);
+    }
+
+    await loadStats();
+}
+
+async function loadWrongBookOverview() {
+    try {
+        const data = await window.storageService.getWrongbookStats();
+        if (!data || !data.success) return;
+        const bankStats = data.stats;
+        const wbTotal = document.getElementById('wb-total');
+        const wbBanks = document.getElementById('wb-banks');
+        const wbReviewed = document.getElementById('wb-reviewed');
+        if (!wbTotal) return;
+        let totalWrong = 0;
+        let bankCount = 0;
+        for (const bank in bankStats) {
+            totalWrong += bankStats[bank].total || 0;
+            bankCount++;
+        }
+        wbTotal.textContent = totalWrong;
+        wbBanks.textContent = bankCount;
+        wbReviewed.textContent = '0';
+    } catch(e) {
+        console.error('加载错题本概览失败:', e);
     }
 }
 
@@ -847,11 +951,19 @@ async function loadPracticeOptions() {
         // 绑定题库选择事件
         select.onchange = () => {
             loadPracticeChapters();
-            updateAvailableStats();
+            if (currentPracticeMode === 'wrong') {
+                updateWrongQuestionStats();
+            } else {
+                updateAvailableStats();
+            }
         };
         
         // 初始加载统计
-        updateAvailableStats();
+        if (currentPracticeMode === 'wrong') {
+            updateWrongQuestionStats();
+        } else {
+            updateAvailableStats();
+        }
     } catch (error) {
         console.error('加载题库选项失败:', error);
     }
@@ -876,7 +988,13 @@ async function loadPracticeChapters() {
         }
     }
     
-    select.onchange = updateAvailableStats;
+    select.onchange = function() {
+        if (currentPracticeMode === 'wrong') {
+            updateWrongQuestionStats();
+        } else {
+            updateAvailableStats();
+        }
+    };
 }
 
 async function updateAvailableStats() {
@@ -1245,6 +1363,40 @@ function updateTimerDisplay() {
     }
 }
 
+function applyAdaptiveTextSize(el) {
+    if (!el) return;
+    var classes = ['text-sm', 'text-xs', 'text-xxs', 'text-micro'];
+    for (var i = 0; i < classes.length; i++) {
+        el.classList.remove(classes[i]);
+    }
+    var len = (el.textContent || '').length;
+    if (len > 300) {
+        el.classList.add('text-micro');
+    } else if (len > 180) {
+        el.classList.add('text-xxs');
+    } else if (len > 100) {
+        el.classList.add('text-xs');
+    } else if (len > 50) {
+        el.classList.add('text-sm');
+    }
+}
+
+function applyAdaptiveOptionText(el) {
+    if (!el) return;
+    var classes = ['text-sm', 'text-xs', 'text-xxs'];
+    for (var i = 0; i < classes.length; i++) {
+        el.classList.remove(classes[i]);
+    }
+    var len = (el.textContent || '').length;
+    if (len > 60) {
+        el.classList.add('text-xxs');
+    } else if (len > 35) {
+        el.classList.add('text-xs');
+    } else if (len > 18) {
+        el.classList.add('text-sm');
+    }
+}
+
 function renderQuestion() {
     const question = practiceQuestions[currentQuestionIndex];
     const result = questionResults[currentQuestionIndex];
@@ -1261,14 +1413,10 @@ function renderQuestion() {
     document.getElementById('question-id').textContent = `#${question.id}`;
     document.getElementById('question-chapter').textContent = question.chapter;
     
-    // 设置题目内容，长题目添加特殊class
+    // 设置题目内容，自适应文本大小
     const contentEl = document.getElementById('question-content');
     contentEl.textContent = question.question;
-    if (question.question.length > 30) {
-        contentEl.classList.add('long-text');
-    } else {
-        contentEl.classList.remove('long-text');
-    }
+    applyAdaptiveTextSize(contentEl);
     
     // 渲染选项
     const optionsList = document.getElementById('options-list');
@@ -1340,8 +1488,18 @@ function renderQuestion() {
     
     document.getElementById('prev-btn').disabled = currentQuestionIndex === 0;
     
+    var optionTextEls = document.querySelectorAll('.option-text');
+    for (var i = 0; i < optionTextEls.length; i++) {
+        applyAdaptiveOptionText(optionTextEls[i]);
+    }
+    
     // 更新导航面板
     renderQuestionNav();
+    
+    // 模拟考试模式：自动保存选择的答案（不判分）
+    if (isExamMode && selectedAnswers.length > 0) {
+        saveExamAnswer();
+    }
 }
 
 function selectOption(key, isMulti) {
@@ -1778,6 +1936,34 @@ function clearAllData() {
     );
 }
 
+function confirmClearCache() {
+    showConfirmModal(
+        '清空本地缓存',
+        '此操作将清空排行榜、错题本、做题进度等本地缓存数据，题库内容不会被删除。是否继续？',
+        () => {
+            showConfirmModal(
+                '二次确认',
+                '确定要清空所有本地缓存吗？此操作不可恢复！',
+                async () => {
+                    try {
+                        await window.storageService.clearAllCacheData();
+                        localStorage.removeItem('quiz_rankings');
+                        localStorage.removeItem('quiz_wrongbook');
+                        localStorage.removeItem('quiz_progress');
+                        localStorage.removeItem('quiz_player_name');
+                        localStorage.removeItem('mobileMenuBtnPos');
+                        showToast('本地缓存已清空', 'success');
+                        loadStats();
+                        loadBankChapters();
+                    } catch (error) {
+                        showToast('清空缓存失败: ' + error.message, 'error');
+                    }
+                }
+            );
+        }
+    );
+}
+
 // ==================== 工具函数 ====================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -1944,26 +2130,31 @@ function onPracticeModeChange() {
     } else {
         updateAvailableStats();
     }
+
+    var statsTitle = document.querySelector('#stats-preview h3');
+    if (statsTitle) {
+        statsTitle.textContent = mode === 'wrong' ? '错题统计' : '题库统计';
+    }
 }
 
 // 更新错题数量统计
 async function updateWrongQuestionStats() {
     try {
         const bank = document.getElementById('practice-bank').value;
-        let url = `${API_BASE}/api/wrongbook/stats`;
         
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await window.storageService.getWrongbookStats();
         
         if (data.success) {
             let singleCount = 0;
             let multiCount = 0;
             
-            if (bank && data.stats[bank]) {
-                singleCount = data.stats[bank].single || 0;
-                multiCount = data.stats[bank].multi || 0;
+            if (bank) {
+                const bankStats = data.stats[bank];
+                if (bankStats) {
+                    singleCount = bankStats.single || 0;
+                    multiCount = bankStats.multi || 0;
+                }
             } else {
-                // 所有题库的错题
                 Object.values(data.stats).forEach(stat => {
                     singleCount += stat.single || 0;
                     multiCount += stat.multi || 0;
@@ -2621,4 +2812,282 @@ async function deleteProgress(progressId, silent = false) {
             showToast('删除失败: ' + error.message, 'error');
         }
     }
+}
+
+// ==================== 动画系统 ====================
+function initAnimations() {
+    initPageLoader();
+    initParticles();
+    initScrollReveal();
+    initMouseGlow();
+    initButtonRipple();
+    initNavScroll();
+    if (typeof featureCarousel !== 'undefined' && featureCarousel) featureCarousel.init();
+}
+
+function initPageLoader() {
+    var loader = document.getElementById('pageLoader');
+    if (!loader) return;
+    setTimeout(function() {
+        loader.classList.add('loaded');
+        setTimeout(function() {
+            if (loader.parentNode) loader.parentNode.removeChild(loader);
+        }, 600);
+    }, 1200);
+}
+
+function initParticles() {
+    var container = document.getElementById('particlesBg');
+    if (!container) return;
+
+    var particleCount = 25;
+    var colors = [
+        'rgba(124, 92, 252, 0.5)',
+        'rgba(167, 139, 250, 0.4)',
+        'rgba(236, 72, 153, 0.35)',
+        'rgba(59, 130, 246, 0.4)',
+        'rgba(251, 146, 60, 0.35)',
+        'rgba(16, 185, 129, 0.3)',
+        'rgba(196, 181, 253, 0.3)'
+    ];
+
+    for (var i = 0; i < particleCount; i++) {
+        var p = document.createElement('div');
+        p.className = 'particle';
+        var size = Math.random() * 4 + 2;
+        p.style.width = size + 'px';
+        p.style.height = size + 'px';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.background = colors[Math.floor(Math.random() * colors.length)];
+        p.style.boxShadow = '0 0 ' + (size * 2) + 'px ' + colors[Math.floor(Math.random() * colors.length)];
+        p.style.animationDuration = (Math.random() * 15 + 10) + 's';
+        p.style.animationDelay = (Math.random() * 10) + 's';
+        container.appendChild(p);
+    }
+}
+
+function initScrollReveal() {
+    var elements = document.querySelectorAll('.scroll-reveal, .scroll-reveal-left, .scroll-reveal-right, .scroll-reveal-scale');
+    if (!elements.length) return;
+
+    if ('IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    var delay = entry.target.getAttribute('data-reveal-delay');
+                    if (delay) {
+                        setTimeout(function() { entry.target.classList.add('revealed'); }, parseInt(delay));
+                    } else {
+                        entry.target.classList.add('revealed');
+                    }
+                } else {
+                    entry.target.classList.remove('revealed');
+                }
+            });
+        }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+
+        elements.forEach(function(el) {
+            observer.observe(el);
+        });
+
+        window._scrollRevealObserver = observer;
+    } else {
+        elements.forEach(function(el) {
+            el.classList.add('revealed');
+        });
+    }
+}
+
+function resetScrollReveal() {
+    if (window._scrollRevealObserver) {
+        window._scrollRevealObserver.disconnect();
+        window._scrollRevealObserver = null;
+    }
+    var elements = document.querySelectorAll('.scroll-reveal, .scroll-reveal-left, .scroll-reveal-right, .scroll-reveal-scale');
+    elements.forEach(function(el) { el.classList.remove('revealed'); });
+    setTimeout(function() { initScrollReveal(); }, 100);
+}
+
+function initMouseGlow() {
+    var glow = document.getElementById('mouseGlow');
+    if (!glow) return;
+
+    var rafId = null;
+    var targetX = 0, targetY = 0;
+
+    document.addEventListener('mousemove', function(e) {
+        targetX = e.clientX;
+        targetY = e.clientY;
+        if (!rafId) {
+            rafId = requestAnimationFrame(function() {
+                glow.style.left = targetX + 'px';
+                glow.style.top = targetY + 'px';
+                rafId = null;
+            });
+        }
+    });
+}
+
+function initButtonRipple() {
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.btn');
+        if (!btn) return;
+
+        var ripple = document.createElement('span');
+        ripple.className = 'btn-ripple';
+        var rect = btn.getBoundingClientRect();
+        var size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+        ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+        btn.appendChild(ripple);
+
+        setTimeout(function() {
+            if (ripple.parentNode) ripple.parentNode.removeChild(ripple);
+        }, 600);
+    });
+}
+
+function initNavScroll() {
+    var nav = document.getElementById('topNav');
+    if (!nav) return;
+    window.addEventListener('scroll', function() {
+        if (window.scrollY > 20) {
+            nav.classList.add('scrolled');
+        } else {
+            nav.classList.remove('scrolled');
+        }
+    });
+}
+
+var fcState = {
+    current: 0,
+    total: 0,
+    isDragging: false,
+    startX: 0,
+    currentX: 0,
+    dragThreshold: 30,
+    visibleCount: 5,
+    cardWidth: 420,
+    isAnimating: false
+};
+
+function initFeaturesCarousel() {
+    var wrap = document.getElementById('featuresCardsWrap');
+    var track = document.getElementById('featuresCardsTrack');
+    if (!wrap || !track) return;
+    var cards = track.querySelectorAll('.feature-card');
+    fcState.total = cards.length;
+    fcState.current = 0;
+    if (fcState.total === 0) return;
+
+    fcState.cardWidth = window.innerWidth <= 768 ? 260 : 420;
+
+    wrap.addEventListener('mousedown', function(e) {
+        if (fcState.isAnimating) return;
+        fcState.isDragging = true;
+        fcState.startX = e.clientX;
+        fcState.currentX = e.clientX;
+        wrap.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!fcState.isDragging) return;
+        fcState.currentX = e.clientX;
+    });
+    document.addEventListener('mouseup', function() {
+        if (!fcState.isDragging) return;
+        fcState.isDragging = false;
+        wrap.style.cursor = 'grab';
+        var dx = fcState.currentX - fcState.startX;
+        if (Math.abs(dx) > fcState.dragThreshold) {
+            scrollFeatures(dx > 0 ? -1 : 1);
+        }
+    });
+
+    wrap.addEventListener('touchstart', function(e) {
+        if (fcState.isAnimating) return;
+        fcState.isDragging = true;
+        fcState.startX = e.touches[0].clientX;
+        fcState.currentX = e.touches[0].clientX;
+        e.preventDefault();
+    }, { passive: false });
+    wrap.addEventListener('touchmove', function(e) {
+        if (!fcState.isDragging) return;
+        fcState.currentX = e.touches[0].clientX;
+    }, { passive: false });
+    wrap.addEventListener('touchend', function() {
+        if (!fcState.isDragging) return;
+        fcState.isDragging = false;
+        var dx = fcState.currentX - fcState.startX;
+        if (Math.abs(dx) > fcState.dragThreshold) {
+            scrollFeatures(dx > 0 ? -1 : 1);
+        }
+    });
+
+    window.addEventListener('resize', function() {
+        fcState.cardWidth = window.innerWidth <= 768 ? 260 : 420;
+        updateCarouselDisplay();
+    });
+
+    updateCarouselDisplay();
+}
+
+function scrollFeatures(direction) {
+    if (fcState.total === 0 || fcState.isAnimating) return;
+    fcState.current = (fcState.current + direction + fcState.total) % fcState.total;
+    fcState.isAnimating = true;
+    updateCarouselDisplay();
+    setTimeout(function() { fcState.isAnimating = false; }, 400);
+}
+
+function getCardOffsetFromCenter(idx, current) {
+    var diff = idx - current;
+    var half = Math.floor(fcState.total / 2);
+    if (diff > half) diff -= fcState.total;
+    if (diff < -half) diff += fcState.total;
+    return diff;
+}
+
+function updateCarouselDisplay() {
+    var wrap = document.getElementById('featuresCardsWrap');
+    var track = document.getElementById('featuresCardsTrack');
+    if (!wrap || !track || fcState.total === 0) return;
+
+    var wrapWidth = wrap.offsetWidth;
+    var wrapHeight = wrap.offsetHeight;
+    var cardW = fcState.cardWidth;
+    var cardH = 260;
+    var centerX = wrapWidth / 2 - cardW / 2;
+    var centerY = wrapHeight / 2 - cardH / 2;
+    var visibleCount = fcState.total >= 4 ? Math.floor(fcState.total / 2) : fcState.total;
+
+    var cards = track.querySelectorAll('.feature-card');
+    cards.forEach(function(card, i) {
+        var offset = getCardOffsetFromCenter(i, fcState.current);
+        var absOffset = Math.abs(offset);
+        var isVisible = absOffset <= Math.ceil(visibleCount / 2);
+        var scale = isVisible ? (1 - absOffset * 0.1) : 0.85;
+        var opacity = isVisible ? (1 - absOffset * 0.22) : 0;
+        var tx = centerX + offset * (cardW * 0.55);
+        var ty = centerY + absOffset * 10;
+        var zIndex = fcState.total - absOffset;
+
+        card.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease';
+        card.style.transform = 'translate(' + tx + 'px, ' + ty + 'px) scale(' + scale + ')';
+        card.style.opacity = opacity;
+        card.style.zIndex = zIndex;
+        card.style.pointerEvents = isVisible ? 'auto' : 'none';
+
+        if (offset === 0) card.classList.add('is-active');
+        else card.classList.remove('is-active');
+    });
+}
+
+function toggleMobileMenu() {
+    var btn = document.getElementById('gnavMenuBtn');
+    var nav = document.querySelector('.top-nav .nav-links');
+    if (!btn || !nav) return;
+    btn.classList.toggle('is-active');
+    nav.classList.toggle('is-open');
 }

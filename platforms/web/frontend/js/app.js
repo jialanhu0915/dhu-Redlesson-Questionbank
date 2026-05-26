@@ -1311,6 +1311,40 @@ function updateTimerDisplay() {
     }
 }
 
+function applyAdaptiveTextSize(el) {
+    if (!el) return;
+    var classes = ['text-sm', 'text-xs', 'text-xxs', 'text-micro'];
+    for (var i = 0; i < classes.length; i++) {
+        el.classList.remove(classes[i]);
+    }
+    var len = (el.textContent || '').length;
+    if (len > 300) {
+        el.classList.add('text-micro');
+    } else if (len > 180) {
+        el.classList.add('text-xxs');
+    } else if (len > 100) {
+        el.classList.add('text-xs');
+    } else if (len > 50) {
+        el.classList.add('text-sm');
+    }
+}
+
+function applyAdaptiveOptionText(el) {
+    if (!el) return;
+    var classes = ['text-sm', 'text-xs', 'text-xxs'];
+    for (var i = 0; i < classes.length; i++) {
+        el.classList.remove(classes[i]);
+    }
+    var len = (el.textContent || '').length;
+    if (len > 60) {
+        el.classList.add('text-xxs');
+    } else if (len > 35) {
+        el.classList.add('text-xs');
+    } else if (len > 18) {
+        el.classList.add('text-sm');
+    }
+}
+
 function renderQuestion() {
     const question = practiceQuestions[currentQuestionIndex];
     const result = questionResults[currentQuestionIndex];
@@ -1327,14 +1361,10 @@ function renderQuestion() {
     document.getElementById('question-id').textContent = `#${question.id}`;
     document.getElementById('question-chapter').textContent = question.chapter;
     
-    // 设置题目内容，长题目添加特殊class
+    // 设置题目内容，自适应文本大小
     const contentEl = document.getElementById('question-content');
     contentEl.textContent = question.question;
-    if (question.question.length > 30) {
-        contentEl.classList.add('long-text');
-    } else {
-        contentEl.classList.remove('long-text');
-    }
+    applyAdaptiveTextSize(contentEl);
     
     // 渲染选项
     const optionsList = document.getElementById('options-list');
@@ -1405,6 +1435,11 @@ function renderQuestion() {
     }
     
     document.getElementById('prev-btn').disabled = currentQuestionIndex === 0;
+    
+    var optionTextEls = document.querySelectorAll('.option-text');
+    for (var i = 0; i < optionTextEls.length; i++) {
+        applyAdaptiveOptionText(optionTextEls[i]);
+    }
     
     // 更新导航面板
     renderQuestionNav();
@@ -1782,9 +1817,13 @@ async function loadConfig() {
         const data = await window.storageService.getConfig();
 
         if (data.success) {
-            document.getElementById('data-path').value = data.config.data_path || '';
-            document.getElementById('current-data-file').textContent =
-                (data.config.data_path || '') + '/' + (data.config.questions_file || '');
+            var dataPathEl = document.getElementById('data-path');
+            if (dataPathEl) dataPathEl.value = data.config.data_path || '';
+            var currentDataFileEl = document.getElementById('current-data-file');
+            if (currentDataFileEl) {
+                currentDataFileEl.textContent =
+                    (data.config.data_path || '') + '/' + (data.config.questions_file || '');
+            }
         }
     } catch (error) {
         console.error('加载配置失败:', error);
@@ -2730,7 +2769,7 @@ function initAnimations() {
     initMouseGlow();
     initButtonRipple();
     initNavScroll();
-    featureCarousel.init();
+    if (typeof featureCarousel !== 'undefined' && featureCarousel) featureCarousel.init();
 }
 
 function initPageLoader() {

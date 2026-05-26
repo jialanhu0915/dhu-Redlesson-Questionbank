@@ -38,23 +38,21 @@ document.addEventListener('DOMContentLoaded', async function() {
     initFeaturesCarousel();
     initUpload();
 
-    // Electron 环境特殊处理
     if (isElectron) {
         serverOnline = true;
         await loadStats();
+    } else if (window.storageService && window.storageService.isMobile) {
+        await loadPresetData();
     }
 
     await loadConfig();
 
-    // Electron 环境不需要健康检查
     if (!isElectron) {
         startHealthCheck();
     }
 
-    // 设置初始页面属性
     document.body.setAttribute('data-page', 'dashboard');
 
-    // 暴露函数到全局作用域（用于onclick调用）
     window.changeNavPage = changeNavPage;
     window.togglePanel = togglePanel;
 
@@ -246,6 +244,60 @@ async function loadStats() {
         console.error('加载统计数据失败:', error);
     }
     loadWrongBookOverview();
+}
+
+// 首次启动自动导入预置题库
+async function loadPresetData() {
+    try {
+        var banks = await window.storageService.getBanks();
+        if (banks.success && banks.banks && banks.banks.length > 0) {
+            console.log('已有题库数据，跳过预置导入');
+            await loadStats();
+            return;
+        }
+    } catch (e) {
+        console.warn('检查已有题库失败，尝试导入预置数据:', e);
+    }
+
+    try {
+        var resp = await fetch('data/preset.json');
+        if (!resp.ok) {
+            console.warn('预置题库文件不存在 (data/preset.json)');
+            return;
+        }
+        var preset = await resp.json();
+
+        var bankNames = Object.keys(preset);
+        console.log('开始导入预置题库:', bankNames.length, '个题库');
+
+        var totalImported = 0;
+        for (var i = 0; i < bankNames.length; i++) {
+            var bankName = bankNames[i];
+            var bankData = preset[bankName];
+            var questions = bankData.questions || bankData;
+
+            if (questions.length === 0) continue;
+
+            var result = await window.storageService.importQuestions(bankName, questions);
+            if (result.success) {
+                totalImported += result.count;
+                console.log('  导入:', bankName, '-', result.count, '题');
+            } else {
+                console.warn('  导入失败:', bankName, result.error);
+            }
+        }
+        console.log('预置题库导入完成，共', totalImported, '题');
+
+        if (totalImported > 0) {
+            if (typeof showToast === 'function') {
+                showToast('预置题库已加载: ' + totalImported + ' 道题', 'success');
+            }
+        }
+    } catch (e) {
+        console.error('预置题库导入失败:', e);
+    }
+
+    await loadStats();
 }
 
 async function loadWrongBookOverview() {
@@ -1311,6 +1363,40 @@ function updateTimerDisplay() {
     }
 }
 
+function applyAdaptiveTextSize(el) {
+    if (!el) return;
+    var classes = ['text-sm', 'text-xs', 'text-xxs', 'text-micro'];
+    for (var i = 0; i < classes.length; i++) {
+        el.classList.remove(classes[i]);
+    }
+    var len = (el.textContent || '').length;
+    if (len > 300) {
+        el.classList.add('text-micro');
+    } else if (len > 180) {
+        el.classList.add('text-xxs');
+    } else if (len > 100) {
+        el.classList.add('text-xs');
+    } else if (len > 50) {
+        el.classList.add('text-sm');
+    }
+}
+
+function applyAdaptiveOptionText(el) {
+    if (!el) return;
+    var classes = ['text-sm', 'text-xs', 'text-xxs'];
+    for (var i = 0; i < classes.length; i++) {
+        el.classList.remove(classes[i]);
+    }
+    var len = (el.textContent || '').length;
+    if (len > 60) {
+        el.classList.add('text-xxs');
+    } else if (len > 35) {
+        el.classList.add('text-xs');
+    } else if (len > 18) {
+        el.classList.add('text-sm');
+    }
+}
+
 function renderQuestion() {
     const question = practiceQuestions[currentQuestionIndex];
     const result = questionResults[currentQuestionIndex];
@@ -1327,14 +1413,10 @@ function renderQuestion() {
     document.getElementById('question-id').textContent = `#${question.id}`;
     document.getElementById('question-chapter').textContent = question.chapter;
     
-    // 设置题目内容，长题目添加特殊class
+    // 设置题目内容，自适应文本大小
     const contentEl = document.getElementById('question-content');
     contentEl.textContent = question.question;
-    if (question.question.length > 30) {
-        contentEl.classList.add('long-text');
-    } else {
-        contentEl.classList.remove('long-text');
-    }
+    applyAdaptiveTextSize(contentEl);
     
     // 渲染选项
     const optionsList = document.getElementById('options-list');
@@ -1406,8 +1488,18 @@ function renderQuestion() {
     
     document.getElementById('prev-btn').disabled = currentQuestionIndex === 0;
     
+    var optionTextEls = document.querySelectorAll('.option-text');
+    for (var i = 0; i < optionTextEls.length; i++) {
+        applyAdaptiveOptionText(optionTextEls[i]);
+    }
+    
     // 更新导航面板
     renderQuestionNav();
+    
+    // 模拟考试模式：自动保存选择的答案（不判分）
+    if (isExamMode && selectedAnswers.length > 0) {
+        saveExamAnswer();
+    }
 }
 
 function selectOption(key, isMulti) {
@@ -2730,7 +2822,7 @@ function initAnimations() {
     initMouseGlow();
     initButtonRipple();
     initNavScroll();
-    featureCarousel.init();
+    if (typeof featureCarousel !== 'undefined' && featureCarousel) featureCarousel.init();
 }
 
 function initPageLoader() {

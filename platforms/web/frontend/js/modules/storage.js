@@ -302,14 +302,24 @@ class StorageService {
         if (this.isElectron) {
             return await window.electronAPI.getStats(params);
         } else if (this.isMobile) {
-             // 简单的统计实现
-             try {
-                // Todo: 实现真实的统计
-                return { success: true, stats: { total_questions: 0, total_done: 0, correct_rate: 0 }};
-             } catch(e) { return {success: false, error: e.message}; }
+            try {
+                const allQuestions = await this.db.questions.toArray();
+                const banks = await this.db.banks.toArray();
+                const singleCount = allQuestions.filter(function(q) { return q.type === 'single'; }).length;
+                const multiCount = allQuestions.filter(function(q) { return q.type === 'multi'; }).length;
+                return {
+                    success: true,
+                    stats: {
+                        total_banks: banks.length,
+                        total_questions: allQuestions.length,
+                        single_choice_count: singleCount,
+                        multi_choice_count: multiCount
+                    }
+                };
+            } catch(e) { return {success: false, error: e.message}; }
         } else {
             const u = new URLSearchParams(params);
-            const response = await fetch(`/api/stats?${u}`);
+            const response = await fetch('/api/stats?' + u.toString());
             return await response.json();
         }
     }
