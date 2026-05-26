@@ -190,31 +190,36 @@ body.remote-mode .question-item .btn-danger { display: none !important; }
     .practice-header-info .btn { padding: 4px 8px; font-size: 11px; }
     .practice-mode-badge { font-size: 10px !important; padding: 2px 6px !important; }
 
-    .practice-layout { flex-direction: column; }
-    .practice-main { padding: 0; }
+    .practice-layout { flex-direction: column; display: flex; }
+    .practice-layout.practicing { height: calc(100vh - 160px); overflow: hidden; }
+    .practice-main { padding: 0; width: 100%; }
+    .practice-layout.practicing .practice-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
+    .practice-settings { overflow-y: auto; }
     .settings-row-top, .settings-row-bottom { grid-template-columns: 1fr; gap: 12px; }
     .settings-card { padding: 16px; }
 
-    .question-card { padding: 16px; }
+    .practice-area { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .question-card { flex: 1; overflow: hidden; padding: 14px; min-height: 0; }
     .question-header { flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
     .question-type { font-size: 11px; padding: 2px 6px; }
     .question-id-badge { font-size: 10px; }
     .question-chapter { font-size: 11px; }
-    .question-content { font-size: 15px; margin-bottom: 16px; }
-    .option-btn { padding: 6px 14px; font-size: 14px; }
+    .question-content { font-size: 15px; margin-bottom: 6px; }
+    .option-btn { padding: 4px 14px; font-size: 14px; }
     .option-key { width: 28px; height: 28px; font-size: 13px; }
 
-    .question-content.text-sm { font-size: 14px; line-height: 1.6; }
-    .question-content.text-xs { font-size: 13px; line-height: 1.5; }
-    .question-content.text-xxs { font-size: 12px; line-height: 1.4; }
-    .question-content.text-micro { font-size: 11px; line-height: 1.3; }
+    .question-content.text-sm { font-size: 14px; line-height: 1.55; }
+    .question-content.text-xs { font-size: 13px; line-height: 1.45; }
+    .question-content.text-xxs { font-size: 12px; line-height: 1.35; }
+    .question-content.text-micro { font-size: 11px; line-height: 1.25; }
+    .question-content.text-nano { font-size: 10px; line-height: 1.15; }
 
     .option-text.text-sm { font-size: 13px; }
     .option-text.text-xs { font-size: 12px; }
     .option-text.text-xxs { font-size: 11px; }
 
-    .practice-actions { flex-direction: column; gap: 8px; }
+    .practice-actions { flex-shrink: 0; flex-direction: column; gap: 6px; padding-top: 8px; }
     .practice-actions .btn { width: 100%; justify-content: center; }
 
     .answer-result { padding: 10px 12px; font-size: 13px; }
@@ -230,9 +235,8 @@ body.remote-mode .question-item .btn-danger { display: none !important; }
         align-items: center;
         width: 100%;
         gap: 10px;
-        margin-top: 16px;
+        margin-top: 12px;
         position: static;
-        max-height: none;
     }
     .side-panel { width: 100%; max-width: 400px; }
 
