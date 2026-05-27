@@ -69,6 +69,13 @@ jobs:
           exit 1
         fi
         echo "✓ mobile.css 存在"
+
+        echo "检查 assets/public/data/preset.json..."
+        if [ ! -f android/app/src/main/assets/public/data/preset.json ]; then
+          echo "❌ 错误: preset.json 不存在! APK 将没有自带题库!"
+          exit 1
+        fi
+        echo "✓ preset.json 存在 (题库预设数据)"
         
         echo "列出所有 js 模块文件:"
         ls -la android/app/src/main/assets/public/js/modules/

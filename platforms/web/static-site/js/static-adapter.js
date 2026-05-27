@@ -163,9 +163,6 @@
             heroImportBtn.style.display = 'none';
         }
 
-        var heroClearBtn = document.querySelector('.hero-secondary-actions');
-        if (heroClearBtn) heroClearBtn.style.display = 'none';
-
         document.body.classList.add('static-mode');
     }
     

@@ -86,12 +86,14 @@ function showRemoteBadge() {
 
 // 创建移动端菜单按钮
 function createMobileMenu() {
-    var btn = document.createElement('button');
-    btn.className = 'mobile-menu-btn';
-    btn.innerHTML = '<i class="fas fa-bars"></i>';
-    btn.type = 'button';
-    
-    document.body.appendChild(btn);
+    var btn = document.getElementById('gnavMenuBtn');
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.className = 'mobile-menu-btn';
+        btn.innerHTML = '<i class="fas fa-bars"></i>';
+        btn.type = 'button';
+        document.body.appendChild(btn);
+    }
     
     var savedPos = localStorage.getItem('mobileMenuBtnPos');
     if (savedPos) {

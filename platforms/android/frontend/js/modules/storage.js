@@ -12,6 +12,7 @@ class StorageService {
 
         if (this.isMobile) {
             this.initDexie();
+            setTimeout(() => this._ensurePresetData(), 200);
         }
     }
 
@@ -659,6 +660,48 @@ class StorageService {
             [array[i], array[j]] = [array[j], array[i]];
         }
         return array;
+    }
+
+    async _ensurePresetData() {
+        try {
+            const count = await this.db.banks.count();
+            if (count > 0) {
+                console.log('已有题库数据，跳过预设导入 (banks: ' + count + ')');
+                return;
+            }
+            console.log('首次启动，正在导入预设题库...');
+            const response = await fetch('./data/preset.json');
+            if (!response.ok) {
+                console.warn('预设题库文件不存在或加载失败');
+                return;
+            }
+            const data = await response.json();
+            const banks = data.banks;
+            if (!banks) {
+                console.warn('预设题库数据格式无效');
+                return;
+            }
+            let totalImported = 0;
+            for (const [bankName, bankData] of Object.entries(banks)) {
+                const questions = bankData.questions || [];
+                if (questions.length > 0) {
+                    await this.db.transaction('rw', this.db.banks, this.db.questions, async () => {
+                        await this.db.banks.add({ name: bankName, uploadDate: new Date() });
+                        const batch = questions.map((q, idx) => ({
+                            ...q,
+                            bank: bankName,
+                            id: q.id || ('preset_' + bankName + '_' + idx)
+                        }));
+                        await this.db.questions.bulkAdd(batch);
+                    });
+                    totalImported += questions.length;
+                    console.log('导入题库: ' + bankName + ' (' + questions.length + '题)');
+                }
+            }
+            console.log('预设题库导入完成，共导入 ' + totalImported + ' 题');
+        } catch (error) {
+            console.error('预设题库导入失败:', error);
+        }
     }
 
     // 导入数据辅助方法 (供 Parser 调用)
