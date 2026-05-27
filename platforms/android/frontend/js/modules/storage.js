@@ -103,8 +103,12 @@ class StorageService {
             return await window.electronAPI.practiceRandom(params);
         } else if (this.isMobile) {
             try {
-                let collection = this.db.questions.where('bank').equals(params.bank);
-                let questions = await collection.toArray();
+                let questions;
+                if (params.bank) {
+                    questions = await this.db.questions.where('bank').equals(params.bank).toArray();
+                } else {
+                    questions = await this.db.questions.toArray();
+                }
 
                 if (params.chapter && params.chapter !== 'all') {
                     questions = questions.filter(q => q.chapter === params.chapter);
@@ -154,7 +158,12 @@ class StorageService {
             return await window.electronAPI.practiceSequence(params);
         } else if (this.isMobile) {
             try {
-                let questions = await this.db.questions.where('bank').equals(params.bank).toArray();
+                let questions;
+                if (params.bank) {
+                    questions = await this.db.questions.where('bank').equals(params.bank).toArray();
+                } else {
+                    questions = await this.db.questions.toArray();
+                }
                 
                 if (params.chapter && params.chapter !== 'all') {
                     questions = questions.filter(q => q.chapter === params.chapter);
@@ -184,7 +193,12 @@ class StorageService {
             return await window.electronAPI.practiceWrong(params);
         } else if (this.isMobile) {
             try {
-                const wrongEntries = await this.db.wrongbook.where('bank').equals(params.bank).toArray();
+                let wrongEntries;
+                if (params.bank) {
+                    wrongEntries = await this.db.wrongbook.where('bank').equals(params.bank).toArray();
+                } else {
+                    wrongEntries = await this.db.wrongbook.toArray();
+                }
                 const questionIds = wrongEntries.map(w => w.question_id);
                 
                 let questions = await this.db.questions.where('id').anyOf(questionIds).toArray();
@@ -334,8 +348,12 @@ class StorageService {
             return await window.electronAPI.getQuestions(filters);
         } else if (this.isMobile) {
             try {
-                let collection = this.db.questions.where('bank').equals(filters.bank);
-                let questions = await collection.toArray();
+                let questions;
+                if (filters.bank) {
+                    questions = await this.db.questions.where('bank').equals(filters.bank).toArray();
+                } else {
+                    questions = await this.db.questions.toArray();
+                }
                 
                 if (filters.chapter && filters.chapter !== 'all') {
                     questions = questions.filter(q => q.chapter === filters.chapter);

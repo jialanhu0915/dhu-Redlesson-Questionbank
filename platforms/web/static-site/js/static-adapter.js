@@ -103,7 +103,17 @@
             return { success: true, questions: data.banks && data.banks[bankName] ? data.banks[bankName] : [] };
         },
         async addWrongQuestion(question) { Wrongbook.add(question.question, question.userAnswer); return { success: true }; },
-        async removeWrongQuestion(questionId) { return { success: true }; },
+        async removeWrongQuestion(questionId) {
+            const data = Wrongbook.getAll();
+            for (const [bankName, questions] of Object.entries(data.banks || {})) {
+                const found = questions.find(q => q.id === questionId);
+                if (found) {
+                    Wrongbook.remove(bankName, questionId);
+                    return { success: true };
+                }
+            }
+            return { success: false, error: '错题不存在' };
+        },
         async getProgressList() { return Progress.getAll(); },
         async saveProgress(data) { const result = Progress.save(data); return { success: true, progress: result.progress }; },
         async getProgressById(id) { return Progress.load(id); },
