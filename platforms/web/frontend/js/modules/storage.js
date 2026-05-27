@@ -303,19 +303,21 @@ class StorageService {
             return await window.electronAPI.getStats(params);
         } else if (this.isMobile) {
             try {
-                const allQuestions = await this.db.questions.toArray();
-                const banks = await this.db.banks.toArray();
-                const singleCount = allQuestions.filter(function(q) { return q.type === 'single'; }).length;
-                const multiCount = allQuestions.filter(function(q) { return q.type === 'multi'; }).length;
-                return {
-                    success: true,
-                    stats: {
-                        total_banks: banks.length,
-                        total_questions: allQuestions.length,
-                        single_choice_count: singleCount,
-                        multi_choice_count: multiCount
-                    }
-                };
+                 const allQuestions = await this.db.questions.toArray();
+                 const banks = await this.db.banks.toArray();
+                 const singleCount = allQuestions.filter(function(q) { return q.type === 'single'; }).length;
+                 const multiCount = allQuestions.filter(function(q) { return q.type === 'multi'; }).length;
+                 const judgeCount = allQuestions.filter(function(q) { return q.type === 'judge'; }).length;
+                 return {
+                     success: true,
+                     stats: {
+                         total_banks: banks.length,
+                         total_questions: allQuestions.length,
+                         single_choice_count: singleCount,
+                         multi_choice_count: multiCount,
+                         judge_count: judgeCount
+                     }
+                 };
             } catch(e) { return {success: false, error: e.message}; }
         } else {
             const u = new URLSearchParams(params);

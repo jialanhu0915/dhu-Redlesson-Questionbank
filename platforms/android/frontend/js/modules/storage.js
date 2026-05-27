@@ -6,48 +6,25 @@
 class StorageService {
     constructor() {
         this.isElectron = window.electronAPI !== undefined;
+        // 判断是否为移动端/离线模式 (Capacitor 环境或 file 协议访问且非 Electron)
+        this.isMobile = window.Capacitor !== undefined || (!this.isElectron && window.location.protocol === 'file:');
         this.db = null;
-        this._dbReady = false;
-        this._dbReadyPromise = null;
 
-        Object.defineProperty(this, 'isMobile', {
-            get: function() {
-                return window.Capacitor !== undefined || (!this.isElectron && window.location.protocol === 'file:');
-            },
-            configurable: true
-        });
+        if (this.isMobile) {
+            this.initDexie();
+        }
     }
 
-    _ensureDB() {
-        if (this._dbReady && this.db) return Promise.resolve(this.db);
-        if (this._dbReadyPromise) return this._dbReadyPromise;
-
-        var self = this;
-        this._dbReadyPromise = new Promise(function(resolve, reject) {
-            try {
-                if (typeof Dexie === 'undefined') {
-                    reject(new Error('Dexie.js not loaded'));
-                    return;
-                }
-                self.db = new Dexie('RedLessonDB');
-                self.db.version(1).stores({
-                    banks: '&name',
-                    questions: 'id, bank, chapter, type',
-                    wrongbook: '++id, bank, question_id, [bank+question_id]',
-                    rankings: '++id, bank, score, date',
-                    progress: 'id, bank'
-                });
-                self.db.open().then(function() {
-                    self._dbReady = true;
-                    console.log('IndexedDB initialized for Mobile/Offline mode');
-                    resolve(self.db);
-                }).catch(reject);
-            } catch (e) {
-                reject(e);
-            }
+    initDexie() {
+        this.db = new Dexie('RedLessonDB');
+        this.db.version(1).stores({
+            banks: '&name', // 题库列表，name 唯一
+            questions: 'id, bank, chapter, type', // 题目表
+            wrongbook: '++id, bank, question_id, [bank+question_id]', // 错题本
+            rankings: '++id, bank, score, date', // 排行榜
+            progress: 'id, bank' // 进度
         });
-
-        return this._dbReadyPromise;
+        console.log('IndexedDB initialized for Mobile/Offline mode');
     }
 
     // ================== 题库管理 ==================
@@ -57,7 +34,6 @@ class StorageService {
             return await window.electronAPI.getBanks();
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const banks = await this.db.banks.toArray();
                 // 丰富数据
                 const resultInfos = [];
@@ -85,7 +61,6 @@ class StorageService {
             return await window.electronAPI.getChapters(bankName);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const questions = await this.db.questions.where('bank').equals(bankName).toArray();
                 const chapters = [...new Set(questions.map(q => q.chapter))].sort();
                 return { success: true, chapters: chapters.filter(c => c) };
@@ -103,7 +78,6 @@ class StorageService {
             return await window.electronAPI.deleteBank(bankName);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 await this.db.transaction('rw', this.db.banks, this.db.questions, this.db.wrongbook, this.db.progress, async () => {
                     await this.db.banks.where('name').equals(bankName).delete();
                     await this.db.questions.where('bank').equals(bankName).delete();
@@ -209,7 +183,6 @@ class StorageService {
             return await window.electronAPI.practiceWrong(params);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const wrongEntries = await this.db.wrongbook.where('bank').equals(params.bank).toArray();
                 const questionIds = wrongEntries.map(w => w.question_id);
                 
@@ -249,7 +222,6 @@ class StorageService {
             return await window.electronAPI.getWrongBook(bankName);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const wrongEntries = await this.db.wrongbook
                     .where('bank').equals(bankName)
                     .reverse()
@@ -311,7 +283,6 @@ class StorageService {
             return await window.electronAPI.removeWrongQuestion(questionId);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 // 删除所有引用该ID的错题（可能有多个库？通常 questionId 应该是全局唯一的或者 bank+id 唯一）
                 // 现有的后端逻辑是 delete by id。
                 await this.db.wrongbook.where('question_id').equals(questionId).delete();
@@ -332,20 +303,21 @@ class StorageService {
             return await window.electronAPI.getStats(params);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
-                const allQuestions = await this.db.questions.toArray();
-                const banks = await this.db.banks.toArray();
-                const singleCount = allQuestions.filter(function(q) { return q.type === 'single'; }).length;
-                const multiCount = allQuestions.filter(function(q) { return q.type === 'multi'; }).length;
-                return {
-                    success: true,
-                    stats: {
-                        total_banks: banks.length,
-                        total_questions: allQuestions.length,
-                        single_choice_count: singleCount,
-                        multi_choice_count: multiCount
-                    }
-                };
+                 const allQuestions = await this.db.questions.toArray();
+                 const banks = await this.db.banks.toArray();
+                 const singleCount = allQuestions.filter(function(q) { return q.type === 'single'; }).length;
+                 const multiCount = allQuestions.filter(function(q) { return q.type === 'multi'; }).length;
+                 const judgeCount = allQuestions.filter(function(q) { return q.type === 'judge'; }).length;
+                 return {
+                     success: true,
+                     stats: {
+                         total_banks: banks.length,
+                         total_questions: allQuestions.length,
+                         single_choice_count: singleCount,
+                         multi_choice_count: multiCount,
+                         judge_count: judgeCount
+                     }
+                 };
             } catch(e) { return {success: false, error: e.message}; }
         } else {
             const u = new URLSearchParams(params);
@@ -361,7 +333,6 @@ class StorageService {
             return await window.electronAPI.getQuestions(filters);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 let collection = this.db.questions.where('bank').equals(filters.bank);
                 let questions = await collection.toArray();
                 
@@ -390,7 +361,6 @@ class StorageService {
              return await window.electronAPI.deleteQuestion(id);
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 await this.db.questions.delete(id);
                 await this.db.wrongbook.where('question_id').equals(id).delete();
                 return { success: true };
@@ -408,7 +378,6 @@ class StorageService {
              return await window.electronAPI.updateQuestion(id, data);
          } else if (this.isMobile) {
              try {
-                 await this._ensureDB();
                  await this.db.questions.update(id, data);
                  return { success: true };
              } catch (e) { return { success: false, error: e.message }; }
@@ -428,7 +397,6 @@ class StorageService {
              return await window.electronAPI.getQuestion(id);
          } else if (this.isMobile) {
              try {
-                 await this._ensureDB();
                  const q = await this.db.questions.get(id);
                  if(q) return { success: true, question: q };
                  return { success: false, error: 'Question not found' };
@@ -472,7 +440,6 @@ class StorageService {
             return await window.electronAPI.getStatsByBank();
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const banks = await this.db.banks.toArray();
                 const stats = {};
                 for (const b of banks) {
@@ -499,7 +466,6 @@ class StorageService {
             return await window.electronAPI.getWrongbookStats();
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 // Group by bank
                 const wrongs = await this.db.wrongbook.toArray();
                 // Prefetch all questions involved?
@@ -534,7 +500,6 @@ class StorageService {
             return await window.electronAPI.getRankings();
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const rankings = await this.db.rankings.orderBy('date').reverse().limit(50).toArray();
                 return { success: true, rankings: rankings };
             } catch (e) { return { success: false, error: e.message }; }
@@ -549,7 +514,6 @@ class StorageService {
             return await window.electronAPI.saveRanking(data);
         } else if (this.isMobile) {
              try {
-                 await this._ensureDB();
                  await this.db.rankings.add({
                      ...data,
                      date: new Date()
@@ -571,7 +535,6 @@ class StorageService {
             return await window.electronAPI.clearRankings();
         } else if (this.isMobile) {
              try {
-                 await this._ensureDB();
                  await this.db.rankings.clear();
                  return { success: true };
              } catch (e) { return { success: false, error: e.message }; }
@@ -587,7 +550,6 @@ class StorageService {
             return await window.electronAPI.getProgress();
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const list = await this.db.progress.toArray();
                 return { success: true, progress_list: list };
             } catch (e) { return { success: false, error: e.message }; }
@@ -602,7 +564,6 @@ class StorageService {
             return await window.electronAPI.loadProgress(id);
         } else if (this.isMobile) {
              try {
-                 await this._ensureDB();
                  const p = await this.db.progress.get(Number(id)); // Dexie IDs are numbers if ++id
                  if (p) return { success: true, progress: p };
                  return { success: false, error: 'Not found' };
@@ -618,7 +579,6 @@ class StorageService {
             return await window.electronAPI.saveProgress(data);
         } else if (this.isMobile) {
              try {
-                 await this._ensureDB();
                  const id = await this.db.progress.put({
                      ...data,
                      date: new Date()
@@ -640,7 +600,6 @@ class StorageService {
             return await window.electronAPI.deleteProgress(id);
         } else if (this.isMobile) {
              try {
-                 await this._ensureDB();
                  await this.db.progress.delete(Number(id));
                  return { success: true };
              } catch (e) { return { success: false, error: e.message }; }
@@ -657,7 +616,6 @@ class StorageService {
             if (this.isElectron) {
                 await window.electronAPI.clearRankings();
             } else if (this.isMobile) {
-                await this._ensureDB();
                 await Promise.all([
                     this.db.rankings.clear(),
                     this.db.wrongbook.clear(),
@@ -686,7 +644,6 @@ class StorageService {
             return await window.electronAPI.getProgress();
         } else if (this.isMobile) {
             try {
-                await this._ensureDB();
                 const list = await this.db.progress.toArray();
                 return { success: true, progress_list: list };
             } catch (e) { return { success: false, error: e.message }; }
@@ -709,7 +666,6 @@ class StorageService {
         if (!this.isMobile) return { success: false, error: "Not in mobile mode" };
         
         try {
-            await this._ensureDB();
             const result = await this.db.transaction('rw', this.db.banks, this.db.questions, async () => {
                 // 1. 记录 Bank
                 const existing = await this.db.banks.where('name').equals(bankName).first();

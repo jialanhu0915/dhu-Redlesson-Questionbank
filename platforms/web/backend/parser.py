@@ -197,6 +197,19 @@ class QuestionParser:
             r'^二[、\.\s\t]+多项选择题',
             r'^二[、\.\s\t]+多选题',
         ]
+        # 判断题标识
+        self.judge_choice_patterns = [
+            r'^判断题[:：]?\s*$',
+            r'^[一二三四五六七八九十][、\.．\s]\s*判断题[:：]?\s*$',
+            r'^三[、\.\s\t]+判断题',
+        ]
+        # 判断题答案模式: (对) (错) （对） （错） (正确) (错误) 等
+        self.judge_answer_patterns = [
+            (r'[（(]\s*(对|正确|√|✓|T|t|true)\s*[）)]', '对'),
+            (r'[（(]\s*(错|错误|×|✗|F|f|false)\s*[）)]', '错'),
+        ]
+        # 判断题独立答案行: 对、错、正确、错误 等单独占一行
+        self.judge_standalone_pattern = r'^\s*(对|错|正确|错误|√|✓|×|✗)\s*$'
         # 章节标识
         self.chapter_patterns = [
             r'^第[一二三四五六七八九十百千\d]+章',
@@ -309,6 +322,9 @@ class QuestionParser:
         for pattern in self.multi_choice_patterns:
             if re.match(pattern, text):
                 return 'multi'
+        for pattern in self.judge_choice_patterns:
+            if re.match(pattern, text):
+                return 'judge'
         return None
     
     def detect_chapter(self, text):
@@ -338,6 +354,22 @@ class QuestionParser:
                         answer.append(normalized)
                 return answer
         return []
+
+    def extract_judge_answer(self, text):
+        """从判断题文本中提取答案 返回 '对' 或 '错'"""
+        for pattern, answer_label in self.judge_answer_patterns:
+            m = re.search(pattern, text)
+            if m:
+                return answer_label
+        return None
+
+    def clean_judge_text(self, text):
+        """清理判断题文本，移除答案标记"""
+        cleaned = text
+        for pattern, _ in self.judge_answer_patterns:
+            cleaned = re.sub(pattern, '（  ）', cleaned, count=1)
+        cleaned = re.sub(self.question_number_pattern, '', cleaned)
+        return cleaned.strip()
     
     def has_answer_marker(self, text):
         """检查文本是否包含答案标记（包括空标记）"""
@@ -350,6 +382,10 @@ class QuestionParser:
         # 检查问号答案格式 ?D
         if re.search(self.question_mark_answer_pattern, text):
             return True
+        # 检查判断题答案标记
+        for pattern, _ in self.judge_answer_patterns:
+            if re.search(pattern, text):
+                return True
         return False
     
     def is_option_line(self, text):
@@ -723,6 +759,15 @@ class QuestionParser:
                                     answer_found.append(normalized)
                         break
                     
+                    # 检查判断题独立答案行
+                    if current_type == 'judge':
+                        judge_ans = self.extract_judge_answer(next_line)
+                        if judge_ans:
+                            answer_found = [judge_ans]
+                            has_standalone_answer = True
+                            j += 1
+                            break
+                    
                     # 检查选项行
                     if self.is_option_line(next_line):
                         has_options = True
@@ -766,31 +811,51 @@ class QuestionParser:
             
             # 检测题目行（包含答案标记的行）
             if self.has_answer_marker(line):
-                # 保存上一题（即使选项解析不全，也不丢题目）
+                # 判断是否为判断题
+                is_judge = current_type == 'judge' or (self.extract_judge_answer(line) is not None and not self.extract_answer(line))
+                
+                # 保存上一题
                 if current_question and (current_question.get('options') or current_question.get('question')):
                     questions.append(current_question)
                 
-                # 提取答案
-                answer = self.extract_answer(line)
-                # 清理题目文本
-                question_text = self.clean_question_text(line)
-                
-                current_question = {
-                    'chapter': current_chapter,
-                    'type': current_type,
-                    'question': question_text,
-                    'options': {},
-                    'answer': answer,
-                    'bank': bank_name
-                }
-                
-                # 检查题目行末尾是否有选项（如 "题目（ ）A. 选项A"）
-                opts = self.parse_options_from_line(line)
-                if opts:
-                    current_question['options'].update(opts)
+                if is_judge:
+                    answer = [self.extract_judge_answer(line)]
+                    question_text = self.clean_judge_text(line)
+                    current_question = {
+                        'chapter': current_chapter,
+                        'type': 'judge',
+                        'question': question_text,
+                        'options': {},
+                        'answer': answer,
+                        'bank': bank_name
+                    }
+                else:
+                    answer = self.extract_answer(line)
+                    question_text = self.clean_question_text(line)
+                    current_question = {
+                        'chapter': current_chapter,
+                        'type': current_type,
+                        'question': question_text,
+                        'options': {},
+                        'answer': answer,
+                        'bank': bank_name
+                    }
+                    # 检查题目行末尾是否有选项
+                    opts = self.parse_options_from_line(line)
+                    if opts:
+                        current_question['options'].update(opts)
                 
                 i += 1
                 continue
+
+            # 检测判断题独立答案行（如单独一行的 "对"、"错"、"（对）"、"（错）"）
+            if current_question and not current_question.get('answer'):
+                judge_answer = self.extract_judge_answer(line)
+                if judge_answer:
+                    current_question['answer'] = [judge_answer]
+                    current_question['type'] = 'judge' if current_type == 'judge' else current_question.get('type', 'judge')
+                    i += 1
+                    continue
             
             # 检测独立答案行（如 "正确答案: A"）
             if current_question and not current_question.get('answer'):
@@ -833,15 +898,12 @@ class QuestionParser:
         
         # 后处理 - 生成规范的题目编号
         for idx, q in enumerate(questions):
-            # 使用新的编号系统生成ID（带学期信息）
             q['id'] = generate_question_id(bank_name or extracted_name, idx, year_code, semester_code)
-            # 保留旧ID作为备用（用于兼容已有数据）
             q['legacy_id'] = f"{abs(hash(file_path))}_{idx}"
-            # 确保答案是列表
             if not q['answer']:
                 q['answer'] = []
-            # 根据答案数量自动判断题型
-            if len(q['answer']) > 1:
+            # 根据答案数量自动判断题型（判断题不参与此逻辑）
+            if q.get('type') != 'judge' and len(q['answer']) > 1:
                 q['type'] = 'multi'
         
         # 返回题目列表、题库名称和学期信息

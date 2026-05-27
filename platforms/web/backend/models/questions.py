@@ -136,6 +136,7 @@ class QuestionsModel:
         
         single_count = len([q for q in questions if q.get('type') == 'single'])
         multi_count = len([q for q in questions if q.get('type') == 'multi'])
+        judge_count = len([q for q in questions if q.get('type') == 'judge'])
         
         from collections import OrderedDict
         chapters = OrderedDict()
@@ -148,6 +149,7 @@ class QuestionsModel:
             "total_banks": len(banks),
             "single_choice_count": single_count,
             "multi_choice_count": multi_count,
+            "judge_count": judge_count,
             "chapters": dict(chapters)
         }
     
@@ -165,13 +167,16 @@ class QuestionsModel:
                     'total': 0,
                     'single': 0,
                     'multi': 0,
+                    'judge': 0,
                     'chapters': {}
                 }
             bank_stats[bank]['total'] += 1
             if q.get('type') == 'single':
                 bank_stats[bank]['single'] += 1
-            else:
+            elif q.get('type') == 'multi':
                 bank_stats[bank]['multi'] += 1
+            elif q.get('type') == 'judge':
+                bank_stats[bank]['judge'] = bank_stats[bank].get('judge', 0) + 1
             
             chapter = q.get('chapter', '未分类')
             if chapter not in bank_stats[bank]['chapters']:

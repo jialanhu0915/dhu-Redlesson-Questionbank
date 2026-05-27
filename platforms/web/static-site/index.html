@@ -99,10 +99,15 @@
                             <i class="fas fa-upload"></i> 导入题库
                         </button>
                     </div>
-                    <div style="margin-top:16px;display:flex!important;justify-content:center!important;align-items:center!important;gap:10px!important;width:100%!important;visibility:visible!important;opacity:1!important;height:auto!important;overflow:visible!important;position:relative!important">
-                        <button onclick="confirmClearCache()" style="display:inline-flex!important;align-items:center!important;gap:6px!important;padding:8px 18px!important;border-radius:10px!important;background:linear-gradient(135deg,#dc2626,#ef4444)!important;color:#fff!important;border:none!important;font-size:13px!important;font-weight:600!important;font-family:inherit!important;cursor:pointer!important;opacity:1!important;box-shadow:0 2px 12px rgba(220,38,38,0.3)!important;visibility:visible!important;position:relative!important">
-                            <img src="img/deco/character_changebtn.svg" style="width:16px;height:16px;animation:refreshSpin 3s linear infinite;vertical-align:middle;margin-right:2px" onerror="this.style.display='none'"> 清空缓存
+                    <div class="hero-secondary-actions">
+                        <button class="btn btn-danger-solid btn-sm" onclick="confirmClearCache()">
+                            <img src="img/deco/character_changebtn.svg" style="width:16px;height:16px;animation:refreshSpin 3s linear infinite;vertical-align:middle;margin-right:4px"> 清空缓存
                         </button>
+                        <div class="hero-scroll-indicator" id="heroScrollIndicator">
+                            <span class="scroll-dot"></span>
+                            <span class="scroll-line"><span class="scroll-line-fill"></span></span>
+                            <span class="scroll-text">SCROLL</span>
+                        </div>
                     </div>
                 </section>
 
@@ -127,17 +132,19 @@
                         <div class="stat-num" id="multi-count">0</div>
                         <div class="stat-tag">多选</div>
                     </div>
+                    <div class="stat-pill glow-card">
+                        <div class="stat-icon-sm purple"><i class="fas fa-balance-scale"></i></div>
+                        <div class="stat-num" id="judge-count">0</div>
+                        <div class="stat-tag">判断</div>
+                    </div>
                 </section>
 
-                <section class="bento-grid-single scroll-reveal">
+                <section class="bento-grid scroll-reveal">
                     <div class="bento-card bento-wide shimmer" onclick="switchPage('practice')" style="cursor:pointer">
                         <div class="bento-icon"><i class="fas fa-pen"></i></div>
                         <h3>开始练习</h3>
                         <p>选择题库和模式，开始答题</p>
                     </div>
-                </section>
-
-                <section class="bento-grid scroll-reveal">
                     <div class="bento-card" onclick="switchPage('import')" style="cursor:pointer">
                         <div class="bento-icon accent"><i class="fas fa-upload"></i></div>
                         <h3>导入题库</h3>
@@ -294,6 +301,7 @@
                                 <option value="">全部类型</option>
                                 <option value="single">单选题</option>
                                 <option value="multi">多选题</option>
+                                <option value="judge">判断题</option>
                             </select>
                             <select id="filter-chapter">
                                 <option value="">全部章节</option>
@@ -372,6 +380,10 @@
                                             <input type="number" id="practice-multi-count" class="form-control" value="20" min="0" max="500">
                                         </div>
                                         <div class="config-row">
+                                            <label>判断题数量</label>
+                                            <input type="number" id="practice-judge-count" class="form-control" value="10" min="0" max="500">
+                                        </div>
+                                        <div class="config-row">
                                             <label><input type="checkbox" id="shuffle-options" checked> 随机打乱选项</label>
                                         </div>
                                         <div class="config-row" id="shuffle-questions-row" style="display: none;">
@@ -396,6 +408,7 @@
                                     <div class="preview-content">
                                         <p>单选题可用: <span id="available-single">0</span> 道</p>
                                         <p>多选题可用: <span id="available-multi">0</span> 道</p>
+                                        <p>判断题可用: <span id="available-judge">0</span> 道</p>
                                     </div>
                                 </div>
                                 <div class="settings-card">
@@ -565,6 +578,7 @@
                                 <span class="footer-nav-item">首页</span>
                                 <span class="footer-nav-item">刷题</span>
                                 <span class="footer-nav-item">错题本</span>
+                                <span class="footer-nav-item">导入</span>
                                 <span class="footer-nav-item">统计</span>
                             </nav>
                             <div class="footer-totop-col" onclick="window.scrollTo({top:0,behavior:'smooth'})">
@@ -605,6 +619,7 @@
                     <select id="edit-type">
                         <option value="single">单选题</option>
                         <option value="multi">多选题</option>
+                        <option value="judge">判断题</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -627,12 +642,10 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-    <script src="js/storage.js"></script>
-    <script src="js/questions.js"></script>
-    <script src="js/progress.js"></script>
-    <script src="js/rankings.js"></script>
-    <script src="js/wrongbook.js"></script>
-    <script src="js/static-adapter.js"></script>
+    <script src="js/lib/mammoth.browser.min.js"></script>
+    <script src="js/lib/dexie.min.js"></script>
+    <script src="js/modules/storage.js"></script>
+    <script src="js/modules/parser.js"></script>
     <script src="js/app.js"></script>
     <script src="js/mobile.js"></script>
 

@@ -127,6 +127,11 @@
                         <div class="stat-num" id="multi-count">0</div>
                         <div class="stat-tag">多选</div>
                     </div>
+                    <div class="stat-pill glow-card">
+                        <div class="stat-icon-sm purple"><i class="fas fa-balance-scale"></i></div>
+                        <div class="stat-num" id="judge-count">0</div>
+                        <div class="stat-tag">判断</div>
+                    </div>
                 </section>
 
                 <section class="bento-grid scroll-reveal">
@@ -291,6 +296,7 @@
                                 <option value="">全部类型</option>
                                 <option value="single">单选题</option>
                                 <option value="multi">多选题</option>
+                                <option value="judge">判断题</option>
                             </select>
                             <select id="filter-chapter">
                                 <option value="">全部章节</option>
@@ -369,6 +375,10 @@
                                             <input type="number" id="practice-multi-count" class="form-control" value="20" min="0" max="500">
                                         </div>
                                         <div class="config-row">
+                                            <label>判断题数量</label>
+                                            <input type="number" id="practice-judge-count" class="form-control" value="10" min="0" max="500">
+                                        </div>
+                                        <div class="config-row">
                                             <label><input type="checkbox" id="shuffle-options" checked> 随机打乱选项</label>
                                         </div>
                                         <div class="config-row" id="shuffle-questions-row" style="display: none;">
@@ -393,6 +403,7 @@
                                     <div class="preview-content">
                                         <p>单选题可用: <span id="available-single">0</span> 道</p>
                                         <p>多选题可用: <span id="available-multi">0</span> 道</p>
+                                        <p>判断题可用: <span id="available-judge">0</span> 道</p>
                                     </div>
                                 </div>
                                 <div class="settings-card">
@@ -408,12 +419,12 @@
                         </div>
 
                         <div class="practice-area" id="practice-area" style="display: none;">
-                            <div class="question-header practice-header-bar">
-                                <span class="question-type" id="question-type">单选题</span>
-                                <span class="question-id-badge" id="question-id" title="题目编号">#000000000</span>
-                                <span class="question-chapter" id="question-chapter">第一章</span>
-                            </div>
                             <div class="question-card" id="question-card">
+                                <div class="question-header">
+                                    <span class="question-type" id="question-type">单选题</span>
+                                    <span class="question-id-badge" id="question-id" title="题目编号">#000000000</span>
+                                    <span class="question-chapter" id="question-chapter">第一章</span>
+                                </div>
                                 <div class="question-content" id="question-content"></div>
                                 <div class="options-list" id="options-list"></div>
                                 <div class="answer-result" id="answer-result" style="display: none;"></div>
@@ -603,6 +614,7 @@
                     <select id="edit-type">
                         <option value="single">单选题</option>
                         <option value="multi">多选题</option>
+                        <option value="judge">判断题</option>
                     </select>
                 </div>
                 <div class="form-group">

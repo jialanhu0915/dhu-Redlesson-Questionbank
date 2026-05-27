@@ -21,6 +21,7 @@ def get_random_questions():
     - count: 总题目数量
     - single_count: 单选题数量
     - multi_count: 多选题数量
+    - judge_count: 判断题数量
     """
     bank = request.args.get('bank', '')
     chapter = request.args.get('chapter', '')
@@ -29,33 +30,40 @@ def get_random_questions():
         chapter=chapter if chapter else None
     )
     
-    # 分离单选和多选题
     single_questions = [q for q in questions if q.get('type') == 'single']
     multi_questions = [q for q in questions if q.get('type') == 'multi']
+    judge_questions = [q for q in questions if q.get('type') == 'judge']
     
-    # 检查是否指定了单选和多选数量
     single_count = request.args.get('single_count', '')
     multi_count = request.args.get('multi_count', '')
+    judge_count = request.args.get('judge_count', '')
     
-    if single_count or multi_count:
+    if single_count or multi_count or judge_count:
         single_count = int(single_count) if single_count else 0
         multi_count = int(multi_count) if multi_count else 0
+        judge_count = int(judge_count) if judge_count else 0
         
-        selected_single = []
-        selected_multi = []
+        selected = []
         
         if single_count > 0:
             single_count = min(single_count, len(single_questions))
-            selected_single = random.sample(single_questions, single_count)
-            random.shuffle(selected_single)
+            s = random.sample(single_questions, single_count)
+            random.shuffle(s)
+            selected.extend(s)
         
         if multi_count > 0:
             multi_count = min(multi_count, len(multi_questions))
-            selected_multi = random.sample(multi_questions, multi_count)
-            random.shuffle(selected_multi)
+            m = random.sample(multi_questions, multi_count)
+            random.shuffle(m)
+            selected.extend(m)
+
+        if judge_count > 0:
+            judge_count = min(judge_count, len(judge_questions))
+            j = random.sample(judge_questions, judge_count)
+            random.shuffle(j)
+            selected.extend(j)
         
-        selected = selected_single + selected_multi
-        
+        random.shuffle(selected)
         return jsonify({
             "success": True,
             "questions": selected,
@@ -135,9 +143,11 @@ def get_sequence_questions():
     if shuffle:
         single_questions = [q for q in questions if q.get('type') == 'single']
         multi_questions = [q for q in questions if q.get('type') == 'multi']
+        judge_questions = [q for q in questions if q.get('type') == 'judge']
         random.shuffle(single_questions)
         random.shuffle(multi_questions)
-        questions = single_questions + multi_questions
+        random.shuffle(judge_questions)
+        questions = single_questions + multi_questions + judge_questions
     
     return jsonify({
         "success": True,
@@ -154,38 +164,50 @@ def get_wrong_practice_questions():
     - bank: 按题库筛选
     - single_count: 单选题数量
     - multi_count: 多选题数量
+    - judge_count: 判断题数量
     """
     bank = request.args.get('bank', '')
     questions = WrongbookModel.get_wrong_questions(bank=bank if bank else None)
     
     single_questions = [q for q in questions if q.get('type') == 'single']
     multi_questions = [q for q in questions if q.get('type') == 'multi']
+    judge_questions = [q for q in questions if q.get('type') == 'judge']
     
     single_count = request.args.get('single_count', '')
     multi_count = request.args.get('multi_count', '')
+    judge_count = request.args.get('judge_count', '')
     
-    if single_count or multi_count:
+    if single_count or multi_count or judge_count:
         single_count = int(single_count) if single_count else 0
         multi_count = int(multi_count) if multi_count else 0
+        judge_count = int(judge_count) if judge_count else 0
         
-        selected_single = []
-        selected_multi = []
+        selected = []
         
         if single_count > 0:
             single_count = min(single_count, len(single_questions))
-            selected_single = random.sample(single_questions, single_count) if single_questions else []
-            random.shuffle(selected_single)
+            s = random.sample(single_questions, single_count) if single_questions else []
+            random.shuffle(s)
+            selected.extend(s)
         
         if multi_count > 0:
             multi_count = min(multi_count, len(multi_questions))
-            selected_multi = random.sample(multi_questions, multi_count) if multi_questions else []
-            random.shuffle(selected_multi)
+            m = random.sample(multi_questions, multi_count) if multi_questions else []
+            random.shuffle(m)
+            selected.extend(m)
         
-        questions = selected_single + selected_multi
+        if judge_count > 0:
+            judge_count = min(judge_count, len(judge_questions))
+            j = random.sample(judge_questions, judge_count) if judge_questions else []
+            random.shuffle(j)
+            selected.extend(j)
+        
+        questions = selected
     else:
         random.shuffle(single_questions)
         random.shuffle(multi_questions)
-        questions = single_questions + multi_questions
+        random.shuffle(judge_questions)
+        questions = single_questions + multi_questions + judge_questions
     
     return jsonify({
         "success": True,

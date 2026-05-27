@@ -1,12 +1,12 @@
 /**
- * ??????????
+ * 题库刷题系统前端逻辑
  */
 
-// ????? Electron ???
+// 检测是否在 Electron 环境中
 const isElectron = window.electronAPI !== undefined;
 const API_BASE = isElectron ? '' : '';
 
-// ==================== ???? ====================
+// ==================== 全局状态 ====================
 let currentPage = 'dashboard';
 let practiceQuestions = [];
 let currentQuestionIndex = 0;
@@ -20,57 +20,63 @@ let healthCheckInterval = null;
 let practiceTimer = null;
 let remainingTime = 0;
 let practiceStartTime = null;
-let isExamMode = false;  // ??????
-let questionResults = []; // ??????????
-let lastPracticeSettings = null; // ????????
-let isBackMode = false; // ?????????????
-let editOptionsState = []; // ????????????
-let currentPracticeMode = 'random'; // ???????random/exam/sequence/wrong
-let currentWrongBankName = ''; // ???????
-let currentProgressId = null; // ????ID????????
-let loadedElapsedTime = 0; // ??????????????
-let navCurrentPage = 1; // ???????
-const NAV_PAGE_SIZE = 56; // ?????????
+let isExamMode = false;  // 模拟考试模式
+let questionResults = []; // 存储每道题的作答结果
+let lastPracticeSettings = null; // 保存上次练习设置
+let isBackMode = false; // 背题库模式：仅显示正确选项
+let editOptionsState = []; // 编辑弹窗中当前的选项列表
+let currentPracticeMode = 'random'; // 当前做题模式：random/exam/sequence/wrong
+let currentWrongBankName = ''; // 错题本当前题库
+let currentProgressId = null; // 当前进度ID（用于覆盖保存）
+let loadedElapsedTime = 0; // 读取存档时已经过的时间（秒）
+let navCurrentPage = 1; // 答题卡当前页码
+const NAV_PAGE_SIZE = 56; // 答题卡每页显示数量
 
-// ==================== ??? ====================
+// ==================== 题型辅助函数 ====================
+function getTypeLabel(type) {
+    if (type === 'multi') return '多选题';
+    if (type === 'judge') return '判断题';
+    return '单选题';
+}
+function getTypeClass(type) {
+    if (type === 'multi') return 'multi';
+    if (type === 'judge') return 'judge';
+    return '';
+}
+function isMultiSelect(type) {
+    return type === 'multi';
+}
+
+// ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async function() {
     initNavigation();
+    initUpload();
     initFeaturesCarousel();
 
-    if (!window.STATIC_MODE) {
-        initUpload();
-    }
-
-    // Electron ??????
+    // Electron 环境特殊处理
     if (isElectron) {
         serverOnline = true;
         await loadStats();
     }
 
-    if (window.STATIC_MODE) {
-        serverOnline = true;
-        await loadStats();
-        loadBankChapters();
-    }
-
     await loadConfig();
 
-    // Electron ??????????????
-    if (!isElectron && !window.STATIC_MODE) {
+    // Electron 环境不需要健康检查
+    if (!isElectron) {
         startHealthCheck();
     }
 
-    // ????????
+    // 设置初始页面属性
     document.body.setAttribute('data-page', 'dashboard');
 
-    // ?????????????onclick???
+    // 暴露函数到全局作用域（用于onclick调用）
     window.changeNavPage = changeNavPage;
     window.togglePanel = togglePanel;
 
     initAnimations();
 });
 
-// ==================== ?????? ====================
+// ==================== 面板折叠功能 ====================
 function togglePanel(panelId) {
     const panel = document.getElementById(panelId);
     if (panel) {
@@ -78,27 +84,27 @@ function togglePanel(panelId) {
     }
 }
 
-// ==================== ??????? ====================
+// ==================== 服务器健康检查 ====================
 function startHealthCheck() {
-    // ?3??????????
+    // 每3秒检查一次服务器状态
     healthCheckInterval = setInterval(checkServerHealth, 3000);
-    // ??????
+    // 立即检查一次
     checkServerHealth();
 }
 
 async function checkServerHealth() {
     try {
         if (isElectron) {
-            // Electron ??
+            // Electron 环境
             await window.electronAPI.healthCheck();
             if (!serverOnline) {
                 serverOnline = true;
                 hideServerError();
-                showToast('???????', 'success');
+                showToast('系统连接已恢复', 'success');
                 switchPage(currentPage);
             }
         } else {
-            // Web ??
+            // Web 环境
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 2000);
 
@@ -111,8 +117,8 @@ async function checkServerHealth() {
                 if (!serverOnline) {
                     serverOnline = true;
                     hideServerError();
-                    showToast('????????', 'success');
-                    // ??????????
+                    showToast('服务器连接已恢复', 'success');
+                    // 重新加载当前页面数据
                     switchPage(currentPage);
                 }
             } else {
@@ -128,13 +134,13 @@ function handleServerOffline() {
     if (serverOnline) {
         serverOnline = false;
         showServerError();
-        showToast('????????????????????', 'error');
+        showToast('服务器连接已断开，请检查后端服务是否运行', 'error');
         
-        // ????????????
+        // 如果正在刷题，暂停计时器
         if (practiceTimer) {
             clearInterval(practiceTimer);
             practiceTimer = null;
-            showToast('???????', 'warning');
+            showToast('答题计时已暂停', 'warning');
         }
     }
 }
@@ -147,8 +153,8 @@ function showServerError() {
         errorBanner.className = 'server-error-banner';
         errorBanner.innerHTML = `
             <i class="fas fa-exclamation-triangle"></i>
-            <span>????????????????????</span>
-            <button onclick="checkServerHealth()" class="btn btn-small">????</button>
+            <span>服务器连接已断开，请确保后端服务正在运行</span>
+            <button onclick="checkServerHealth()" class="btn btn-small">重试连接</button>
         `;
         document.body.insertBefore(errorBanner, document.body.firstChild);
     }
@@ -162,7 +168,7 @@ function hideServerError() {
     }
 }
 
-// ==================== ?? ====================
+// ==================== 导航 ====================
 function initNavigation() {
     document.querySelectorAll('.nav-link').forEach(item => {
         item.addEventListener('click', function() {
@@ -200,7 +206,7 @@ function switchPage(page) {
         item.classList.toggle('active', item.dataset.page === page);
     });
     
-    // ????
+    // 切换页面
     document.querySelectorAll('.page').forEach(p => {
         p.classList.remove('active');
     });
@@ -238,10 +244,10 @@ function switchPage(page) {
     }
 }
 
-// ==================== ???? ====================
+// ==================== 统计数据 ====================
 async function loadStats() {
     try {
-        // ?? StorageService ????
+        // 使用 StorageService 统一调用
         const data = await window.storageService.getStats();
 
         if (data.success) {
@@ -250,9 +256,10 @@ async function loadStats() {
             document.getElementById('total-questions').textContent = stats.total_questions;
             document.getElementById('single-count').textContent = stats.single_choice_count;
             document.getElementById('multi-count').textContent = stats.multi_choice_count;
+            document.getElementById('judge-count').textContent = stats.judge_count || 0;
         }
     } catch (error) {
-        console.error('????????:', error);
+        console.error('加载统计数据失败:', error);
     }
     loadWrongBookOverview();
 }
@@ -276,14 +283,14 @@ async function loadWrongBookOverview() {
         wbBanks.textContent = bankCount;
         wbReviewed.textContent = '0';
     } catch(e) {
-        console.error('?????????:', e);
+        console.error('加载错题本概览失败:', e);
     }
 }
 
-// ????????????
+// 加载按题库分组的章节分布
 async function loadBankChapters() {
     try {
-        // ?? StorageService ????
+        // 使用 StorageService 统一调用
         const data = await window.storageService.getStatsByBank();
         
         const container = document.getElementById('bank-chapters-container');
@@ -294,7 +301,7 @@ async function loadBankChapters() {
                 const chaptersHtml = Object.entries(bankData.chapters).map(([chapterName, count]) => `
                     <div class="chapter-item">
                         <span class="chapter-name" title="${chapterName}">${chapterName}</span>
-                        <span class="chapter-count">${count}?</span>
+                        <span class="chapter-count">${count}题</span>
                     </div>
                 `).join('');
                 
@@ -303,7 +310,7 @@ async function loadBankChapters() {
                         <div class="bank-title">
                             <i class="fas fa-book"></i>
                             ${bankName}
-                            <span class="bank-count">(?${bankData.total}?)</span>
+                            <span class="bank-count">(共${bankData.total}题)</span>
                         </div>
                         <div class="chapter-list">
                             ${chaptersHtml}
@@ -315,52 +322,52 @@ async function loadBankChapters() {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-inbox"></i>
-                    <p>???????????</p>
+                    <p>暂无题库，请先导入题库</p>
                 </div>
             `;
         }
     } catch (error) {
-        console.error('????????:', error);
+        console.error('加载题库章节失败:', error);
     }
 }
 
-// ==================== ???? ====================
+// ==================== 文件上传 ====================
 function initUpload() {
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('file-input');
 
     if (isElectron) {
-        // Electron ?????????????????
+        // Electron 环境：点击上传区域时打开文件对话框
         uploadArea.addEventListener('click', async () => {
-            console.log('??? ??????');
+            console.log('🖱️ 点击上传区域');
             try {
                 const result = await window.electronAPI.showOpenDialog({
-                    title: '??????',
+                    title: '选择题库文件',
                     filters: [
-                        { name: '????', extensions: ['txt', 'doc', 'docx'] },
-                        { name: '????', extensions: ['*'] }
+                        { name: '题库文件', extensions: ['txt', 'doc', 'docx'] },
+                        { name: '所有文件', extensions: ['*'] }
                     ],
                     properties: ['openFile']
                 });
 
-                console.log('?? showOpenDialog ??:', result);
+                console.log('📄 showOpenDialog 返回:', result);
 
                 if (result.canceled || result.filePaths.length === 0) {
-                    console.log('? ?????????');
-                    return; // ???????
+                    console.log('❌ 用户取消了文件选择');
+                    return; // 用户取消了选择
                 }
 
                 const filePath = result.filePaths[0];
                 const fileName = filePath.split(/[/\\]/).pop();
-                console.log('? ????? - filePath:', filePath, 'fileName:', fileName);
+                console.log('✅ 选择了文件 - filePath:', filePath, 'fileName:', fileName);
                 handleFileSelectElectron(filePath, fileName);
             } catch (error) {
-                console.error('? ??????:', error);
-                showToast('??????', 'error');
+                console.error('❌ 文件选择失败:', error);
+                showToast('文件选择失败', 'error');
             }
         });
 
-        // Electron ???????????????????????????????
+        // Electron 环境：添加拖拽支持（注意：拖拽无法获取文件路径，需要点击上传）
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
@@ -373,14 +380,14 @@ function initUpload() {
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-            console.log('?? ?????');
+            console.log('📦 检测到拖拽');
 
-            // Electron ??????????????????
-            console.log('?? Electron ???????????????');
-            showToast('??????????????????', 'warning');
+            // Electron 中拖拽无法获取文件路径，需要点击上传
+            console.log('⚠️ Electron 安全限制：拖拽无法获取文件路径');
+            showToast('由于安全限制，请点击上传区域选择文件', 'warning');
         });
     } else {
-        // Web ???????????
+        // Web 环境：使用原生文件上传
         uploadArea.addEventListener('click', () => fileInput.click());
 
         uploadArea.addEventListener('dragover', (e) => {
@@ -410,14 +417,14 @@ function initUpload() {
 }
 
 function handleFileSelectElectron(filePath, fileName) {
-    console.log('?? handleFileSelectElectron ??? - filePath:', filePath, 'fileName:', fileName);
+    console.log('📥 handleFileSelectElectron 被调用 - filePath:', filePath, 'fileName:', fileName);
 
     const allowedTypes = ['.txt', '.doc', '.docx'];
     const ext = '.' + fileName.split('.').pop().toLowerCase();
 
     if (!allowedTypes.includes(ext)) {
-        console.error('? ???????:', ext);
-        showToast('??? .txt?.doc ? .docx ?????', 'error');
+        console.error('❌ 文件类型不支持:', ext);
+        showToast('请选择 .txt、.doc 或 .docx 格式的文件', 'error');
         return;
     }
 
@@ -425,10 +432,10 @@ function handleFileSelectElectron(filePath, fileName) {
     document.getElementById('selected-file').style.display = 'flex';
     document.getElementById('import-btn').disabled = false;
 
-    // ???????????
+    // 保存文件路径供导入使用
     const fileInput = document.getElementById('file-input');
     fileInput.dataset.filePath = filePath;
-    console.log('?? ??? dataset.filePath:', fileInput.dataset.filePath);
+    console.log('💾 已设置 dataset.filePath:', fileInput.dataset.filePath);
 }
 
 function handleFileSelect(file) {
@@ -436,7 +443,7 @@ function handleFileSelect(file) {
     const ext = '.' + file.name.split('.').pop().toLowerCase();
     
     if (!allowedTypes.includes(ext)) {
-        showToast('??? .txt?.doc ? .docx ?????', 'error');
+        showToast('请选择 .txt、.doc 或 .docx 格式的文件', 'error');
         return;
     }
     
@@ -444,7 +451,7 @@ function handleFileSelect(file) {
     document.getElementById('selected-file').style.display = 'flex';
     document.getElementById('import-btn').disabled = false;
     
-    // ??????
+    // 存储文件引用
     document.getElementById('file-input').files = createFileList(file);
 }
 
@@ -465,9 +472,9 @@ function clearFile() {
 async function importFile() {
     const bankName = document.getElementById('bank-name').value.trim();
 
-    console.log('?? ?????? - bankName:', bankName, 'isElectron:', isElectron);
+    console.log('📥 前端开始导入 - bankName:', bankName, 'isElectron:', isElectron);
 
-    // ????
+    // 显示进度
     document.getElementById('import-progress').style.display = 'block';
     document.getElementById('import-result').style.display = 'none';
     document.getElementById('import-btn').disabled = true;
@@ -476,27 +483,27 @@ async function importFile() {
         let data;
 
         if (isElectron) {
-            // Electron ???? dataset ??????
+            // Electron 环境：从 dataset 获取文件路径
             const fileInput = document.getElementById('file-input');
             const filePath = fileInput.dataset.filePath;
 
-            console.log('?? Electron ?? - fileInput:', fileInput);
-            console.log('?? dataset.filePath:', filePath);
+            console.log('📄 Electron 环境 - fileInput:', fileInput);
+            console.log('📄 dataset.filePath:', filePath);
 
             if (!filePath) {
                 document.getElementById('import-progress').style.display = 'none';
                 document.getElementById('import-btn').disabled = false;
-                showToast('??????', 'error');
-                return; // ?????????
+                showToast('请先选择文件', 'error');
+                return; // 用户还没有选择文件
             }
 
-            console.log('?? ?? electronAPI.importQuestions - filePath:', filePath, 'bankName:', bankName);
+            console.log('📤 调用 electronAPI.importQuestions - filePath:', filePath, 'bankName:', bankName);
             data = await window.electronAPI.importQuestions(filePath, bankName);
         } else if (window.storageService && window.storageService.isMobile) {
-            // Mobile ???????
+            // Mobile 环境：本地解析
             const fileInput = document.getElementById('file-input');
             if (!fileInput.files.length) {
-                showToast('??????', 'error');
+                showToast('请先选择文件', 'error');
                 document.getElementById('import-progress').style.display = 'none';
                 document.getElementById('import-btn').disabled = false;
                 return;
@@ -507,11 +514,11 @@ async function importFile() {
                 const effectiveBankName = bankName || file.name.replace(/\.[^/.]+$/, "");
                 const questions = await window.questionParser.parseFile(file);
 
-                if (!questions || questions.length === 0) throw new Error("?????????");
+                if (!questions || questions.length === 0) throw new Error("未能解析出任何题目");
 
                 const result = await window.storageService.importQuestions(effectiveBankName, questions);
                 if (result.success) {
-                    data = { success: true, message: `???? ${result.count} ???` };
+                    data = { success: true, message: `成功导入 ${result.count} 道题目` };
                 } else {
                     data = { success: false, error: result.error };
                 }
@@ -521,11 +528,11 @@ async function importFile() {
             }
 
         } else {
-            // Web ?????????
+            // Web 环境：使用文件上传
             const fileInput = document.getElementById('file-input');
 
             if (!fileInput.files.length) {
-                showToast('??????', 'error');
+                showToast('请先选择文件', 'error');
                 document.getElementById('import-progress').style.display = 'none';
                 document.getElementById('import-btn').disabled = false;
                 return;
@@ -563,13 +570,13 @@ async function importFile() {
         }
     } catch (error) {
         document.getElementById('import-progress').style.display = 'none';
-        showToast('????: ' + error.message, 'error');
+        showToast('导入失败: ' + error.message, 'error');
     }
 
     document.getElementById('import-btn').disabled = false;
 }
 
-// ==================== ???? ====================
+// ==================== 题库管理 ====================
 async function loadBanks() {
     try {
         const data = await window.storageService.getBanks();
@@ -583,17 +590,17 @@ async function loadBanks() {
                         <div class="bank-name">${bank.name}</div>
                         ${bank.semester ? `<div class="bank-semester">${bank.semester}</div>` : ''}
                         <div class="bank-meta">
-                            ????: ${bank.import_time} | ???: ${bank.source_file}
+                            导入时间: ${bank.import_time} | 源文件: ${bank.source_file}
                         </div>
                     </div>
                     <div class="bank-stats">
-                        <span class="bank-count">${bank.question_count} ?</span>
+                        <span class="bank-count">${bank.question_count} 题</span>
                         <div class="bank-actions">
                             <button class="btn btn-secondary btn-small" onclick="browseBank('${bank.name}')">
-                                <i class="fas fa-eye"></i> ??
+                                <i class="fas fa-eye"></i> 查看
                             </button>
                             <button class="btn btn-danger btn-small" onclick="confirmDeleteBank('${bank.name}')">
-                                <i class="fas fa-trash"></i> ??
+                                <i class="fas fa-trash"></i> 删除
                             </button>
                         </div>
                     </div>
@@ -603,20 +610,20 @@ async function loadBanks() {
             bankList.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-inbox"></i>
-                    <p>???????????</p>
+                    <p>暂无题库，请先导入题库</p>
                     <button class="btn btn-primary" onclick="switchPage('import')">
-                        <i class="fas fa-upload"></i> ????
+                        <i class="fas fa-upload"></i> 导入题库
                     </button>
                 </div>
             `;
         }
         
-        // ???????
+        // 隐藏题目浏览器
         document.getElementById('question-browser').style.display = 'none';
         document.getElementById('bank-list').style.display = 'grid';
     } catch (error) {
-        console.error('????????:', error);
-        showToast('????????', 'error');
+        console.error('加载题库列表失败:', error);
+        showToast('加载题库列表失败', 'error');
     }
 }
 
@@ -631,13 +638,13 @@ async function browseBank(bankName) {
     document.getElementById('bank-list').style.display = 'none';
     document.getElementById('question-browser').style.display = 'block';
     
-    // ??????
+    // 加载章节列表
     await loadChapters(bankName);
     
-    // ????
+    // 加载题目
     await loadQuestions();
     
-    // ??????
+    // 绑定筛选事件
     document.getElementById('filter-type').onchange = loadQuestions;
     document.getElementById('filter-chapter').onchange = loadQuestions;
 }
@@ -647,17 +654,17 @@ async function loadChapters(bankName) {
         const data = await window.storageService.getChapters(bankName);
         
         const select = document.getElementById('filter-chapter');
-        select.innerHTML = '<option value="">????</option>';
+        select.innerHTML = '<option value="">全部章节</option>';
         
             if (data.success && Array.isArray(data.chapters)) {
                 data.chapters.forEach(chapter => {
                     select.innerHTML += `<option value="${chapter}">${chapter}</option>`;
                 });
             } else {
-                console.warn('loadPracticeChapters: ??????', data);
+                console.warn('loadPracticeChapters: 章节数据异常', data);
             }
     } catch (error) {
-        console.error('????????:', error);
+        console.error('加载章节列表失败:', error);
     }
 }
 
@@ -683,24 +690,24 @@ async function loadQuestions() {
                     : optionEntries;
                 const answerBlock = isBackMode ? '' : `
                     <div class="question-answer">
-                        <i class="fas fa-check-circle"></i> ????: ${q.answer.join('')}
+                        <i class="fas fa-check-circle"></i> 正确答案: ${q.answer.join('')}
                     </div>`;
                 const actionBlock = isBackMode ? '' : `
                     <div class="question-actions">
                         <button class="btn btn-secondary btn-small" onclick="editQuestion('${q.id}')">
-                            <i class="fas fa-edit"></i> ??
+                            <i class="fas fa-edit"></i> 编辑
                         </button>
                         <button class="btn btn-danger btn-small" onclick="confirmDeleteQuestion('${q.id}')">
-                            <i class="fas fa-trash"></i> ??
+                            <i class="fas fa-trash"></i> 删除
                         </button>
                     </div>`;
                 return `
-                <div class="question-item ${q.type === 'multi' ? 'multi' : ''}">
+                <div class="question-item ${getTypeClass(q.type)}">
                     <div class="question-header">
-                        <span class="question-type ${q.type === 'multi' ? 'multi' : ''}">
-                            ${q.type === 'multi' ? '???' : '???'}
+                        <span class="question-type ${getTypeClass(q.type)}">
+                            ${getTypeLabel(q.type)}
                         </span>
-                        <span class="question-id-badge" title="????">#${q.id}</span>
+                        <span class="question-id-badge" title="题目编号">#${q.id}</span>
                         <span class="question-chapter">${q.chapter}</span>
                     </div>
                     <div class="question-content">${index + 1}. ${q.question}</div>
@@ -717,13 +724,13 @@ async function loadQuestions() {
             questionList.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-search"></i>
-                    <p>???????????</p>
+                    <p>没有找到符合条件的题目</p>
                 </div>
             `;
         }
     } catch (error) {
-        console.error('??????:', error);
-        showToast('??????', 'error');
+        console.error('加载题目失败:', error);
+        showToast('加载题目失败', 'error');
     }
 }
 
@@ -734,21 +741,21 @@ function toggleBackMode(checked) {
 
 function confirmDeleteBank(bankName) {
     showConfirmModal(
-        '????',
-        `???????"${bankName}"??????????`,
+        '删除题库',
+        `确定要删除题库"${bankName}"吗？该操作不可恢复。`,
         async () => {
             try {
                 const data = await window.storageService.deleteBank(bankName);
                 
                 if (data.success) {
-                    showToast(data.message || '????', 'success');
+                    showToast(data.message || '删除成功', 'success');
                     loadBanks();
                     loadStats();
                 } else {
-                    showToast(data.error || '????', 'error');
+                    showToast(data.error || '删除失败', 'error');
                 }
             } catch (error) {
-                showToast('????: ' + error.message, 'error');
+                showToast('删除失败: ' + error.message, 'error');
             }
         }
     );
@@ -756,8 +763,8 @@ function confirmDeleteBank(bankName) {
 
 function confirmDeleteQuestion(questionId) {
     showConfirmModal(
-        '????',
-        '???????????????????',
+        '删除题目',
+        '确定要删除这道题目吗？该操作不可恢复。',
         async () => {
             try {
                 const response = await fetch(`${API_BASE}/api/questions/${questionId}`, {
@@ -766,14 +773,14 @@ function confirmDeleteQuestion(questionId) {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showToast('?????', 'success');
+                    showToast('题目已删除', 'success');
                     loadQuestions();
                     loadStats();
                 } else {
                     showToast(data.error, 'error');
                 }
             } catch (error) {
-                showToast('????: ' + error.message, 'error');
+                showToast('删除失败: ' + error.message, 'error');
             }
         }
     );
@@ -792,7 +799,7 @@ async function editQuestion(questionId) {
             document.getElementById('edit-type').value = q.type;
             document.getElementById('edit-answer').value = q.answer.join('');
 
-            // ??????????????? A-D?
+            // 初始化可编辑选项列表（至少提供 A-D）
             const baseKeys = ['A', 'B', 'C', 'D'];
             const keys = Array.from(new Set([...baseKeys, ...Object.keys(q.options || {})])).sort();
             editOptionsState = keys.map(k => ({ key: k, value: q.options[k] || '' }));
@@ -801,7 +808,7 @@ async function editQuestion(questionId) {
             document.getElementById('edit-modal').classList.add('show');
         }
     } catch (error) {
-        showToast('??????', 'error');
+        showToast('加载题目失败', 'error');
     }
 }
 
@@ -842,70 +849,70 @@ async function saveQuestion() {
         const data = await response.json();
         
         if (data.success) {
-            showToast('?????', 'success');
+            showToast('题目已更新', 'success');
             closeEditModal();
             loadQuestions();
         } else {
             showToast(data.error, 'error');
         }
     } catch (error) {
-        showToast('????: ' + error.message, 'error');
+        showToast('保存失败: ' + error.message, 'error');
     }
 }
 
-// ?????????
+// 渲染可编辑选项列表
 function renderEditOptions() {
     const optionsDiv = document.getElementById('edit-options');
     if (!optionsDiv) return;
     optionsDiv.innerHTML = editOptionsState.map(item => `
         <div class="option-edit" data-key="${item.key}">
             <span>${item.key}.</span>
-            <input type="text" id="edit-option-${item.key}" value="${item.value || ''}" placeholder="??${item.key}">
-            <button class="btn btn-danger btn-small" type="button" onclick="removeEditOption('${item.key}')">??</button>
+            <input type="text" id="edit-option-${item.key}" value="${item.value || ''}" placeholder="选项${item.key}">
+            <button class="btn btn-danger btn-small" type="button" onclick="removeEditOption('${item.key}')">删除</button>
         </div>
     `).join('');
 }
 
-// ?????
+// 添加新选项
 function addEditOption() {
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const existing = new Set(editOptionsState.map(o => o.key));
     const next = [...letters].find(ch => !existing.has(ch));
     if (!next) {
-        showToast('???????', 'warning');
+        showToast('选项已达到上限', 'warning');
         return;
     }
     editOptionsState.push({ key: next, value: '' });
     renderEditOptions();
 }
 
-// ???????????
+// 删除选项，至少保留两个
 function removeEditOption(key) {
     if (editOptionsState.length <= 2) {
-        showToast('????????', 'warning');
+        showToast('至少保留两个选项', 'warning');
         return;
     }
     editOptionsState = editOptionsState.filter(o => o.key !== key);
     renderEditOptions();
 }
 
-// ==================== ???? ====================
+// ==================== 刷题功能 ====================
 async function loadPracticeOptions() {
     try {
         const data = await window.storageService.getBanks();
         
         const select = document.getElementById('practice-bank');
-        select.innerHTML = '<option value="">????</option>';
+        select.innerHTML = '<option value="">全部题库</option>';
         
         if (data.success && Array.isArray(data.banks)) {
             data.banks.forEach(bank => {
-                select.innerHTML += `<option value="${bank.name}">${bank.name} (${bank.question_count}?)</option>`;
+                select.innerHTML += `<option value="${bank.name}">${bank.name} (${bank.question_count}题)</option>`;
             });
         } else {
-            console.warn('loadPracticeOptions: ??????', data);
+            console.warn('loadPracticeOptions: 题库数据异常', data);
         }
         
-        // ????????
+        // 绑定题库选择事件
         select.onchange = () => {
             loadPracticeChapters();
             if (currentPracticeMode === 'wrong') {
@@ -915,21 +922,21 @@ async function loadPracticeOptions() {
             }
         };
         
-        // ??????
+        // 初始加载统计
         if (currentPracticeMode === 'wrong') {
             updateWrongQuestionStats();
         } else {
             updateAvailableStats();
         }
     } catch (error) {
-        console.error('????????:', error);
+        console.error('加载题库选项失败:', error);
     }
 }
 
 async function loadPracticeChapters() {
     const bank = document.getElementById('practice-bank').value;
     const select = document.getElementById('practice-chapter');
-    select.innerHTML = '<option value="">????</option>';
+    select.innerHTML = '<option value="">全部章节</option>';
     
     if (bank) {
         try {
@@ -941,7 +948,7 @@ async function loadPracticeChapters() {
                 });
             }
         } catch (error) {
-            console.error('??????:', error);
+            console.error('加载章节失败:', error);
         }
     }
     
@@ -959,9 +966,9 @@ async function updateAvailableStats() {
     const chapter = document.getElementById('practice-chapter')?.value || '';
     
     try {
-        // ??????
         let singleCount = 0;
         let multiCount = 0;
+        let judgeCount = 0;
         
         const data = await window.storageService.getQuestions({
             bank: bank,
@@ -971,18 +978,21 @@ async function updateAvailableStats() {
         if (data.success && Array.isArray(data.questions)) {
             data.questions.forEach(q => {
                 if (q.type === 'single') singleCount++;
-                else multiCount++;
+                else if (q.type === 'multi') multiCount++;
+                else if (q.type === 'judge') judgeCount++;
             });
         } else {
-            console.warn('updateAvailableStats: ??????', data);
+            console.warn('updateAvailableStats: 题目数据异常', data);
             document.getElementById('available-single').textContent = 0;
             document.getElementById('available-multi').textContent = 0;
+            document.getElementById('available-judge').textContent = 0;
         }
         
         document.getElementById('available-single').textContent = singleCount;
         document.getElementById('available-multi').textContent = multiCount;
+        document.getElementById('available-judge').textContent = judgeCount;
     } catch (error) {
-        console.error('??????:', error);
+        console.error('更新统计失败:', error);
     }
 }
 
@@ -994,13 +1004,13 @@ function showPracticeSettings() {
     document.getElementById('question-nav-panel').style.display = 'none';
     document.getElementById('practice-title').style.display = 'block';
     
-    // ?????
+    // 停止计时器
     if (practiceTimer) {
         clearInterval(practiceTimer);
         practiceTimer = null;
     }
     
-    // ?????????????
+    // 返回设置页时展开排行榜面板
     document.getElementById('ranking-panel-wrapper').classList.remove('collapsed');
 }
 
@@ -1009,21 +1019,21 @@ async function startPractice(examMode = false) {
     const chapter = document.getElementById('practice-chapter')?.value || '';
     const singleCount = parseInt(document.getElementById('practice-single-count').value) || 0;
     const multiCount = parseInt(document.getElementById('practice-multi-count').value) || 0;
+    const judgeCount = parseInt(document.getElementById('practice-judge-count').value) || 0;
     const enableTimer = document.getElementById('enable-timer').checked;
     const timeMinutes = parseInt(document.getElementById('practice-time').value) || 35;
     const shuffleOptionsEnabled = document.getElementById('shuffle-options')?.checked || false;
     
-    if (singleCount === 0 && multiCount === 0) {
-        showToast('????????????', 'warning');
+    if (singleCount === 0 && multiCount === 0 && judgeCount === 0) {
+        showToast('请至少设置一种题型的数量', 'warning');
         return;
     }
     
-    // ??????
-    lastPracticeSettings = { bank, chapter, singleCount, multiCount, enableTimer, timeMinutes, examMode, shuffleOptionsEnabled, mode: examMode ? 'exam' : 'random' };
+    lastPracticeSettings = { bank, chapter, singleCount, multiCount, judgeCount, enableTimer, timeMinutes, examMode, shuffleOptionsEnabled, mode: examMode ? 'exam' : 'random' };
     currentPracticeMode = examMode ? 'exam' : 'random';
     
     try {
-        const filters = { single_count: singleCount, multi_count: multiCount };
+        const filters = { single_count: singleCount, multi_count: multiCount, judge_count: judgeCount };
         if (bank) filters.bank = bank;
         if (chapter) filters.chapter = chapter;
         const data = await window.storageService.getPracticeRandom(filters);
@@ -1047,13 +1057,13 @@ async function startPractice(examMode = false) {
             selectedAnswers = [];
             practiceStartTime = new Date();
             isExamMode = examMode;
-            navCurrentPage = 1; // ???????
+            navCurrentPage = 1; // 重置答题卡页码
             
-            // ???????????????
+            // 重置进度相关变量（新建练习时）
             currentProgressId = null;
             loadedElapsedTime = 0;
             
-            // ???????????
+            // 初始化每道题的作答结果
             questionResults = practiceQuestions.map(() => ({
                 answered: false,
                 userAnswer: [],
@@ -1067,31 +1077,31 @@ async function startPractice(examMode = false) {
             document.getElementById('practice-header-info').style.display = 'flex';
             document.getElementById('practice-title').style.display = 'none';
             
-            // ????????
+            // 显示并展开答题卡
             const navPanel = document.getElementById('question-nav-panel');
             navPanel.style.display = 'block';
             navPanel.classList.remove('collapsed');
             navPanel.classList.add('expanded');
             
-            // ????????????
+            // 进入刷题后折叠排行榜面板
             document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
             
-            // ??????
+            // 设置模式标识
             const modeBadge = document.getElementById('practice-mode-badge');
             if (isExamMode) {
-                modeBadge.textContent = '????';
+                modeBadge.textContent = '模拟考试';
                 modeBadge.className = 'practice-mode-badge exam';
                 document.getElementById('score-info').style.display = 'none';
             } else {
-                modeBadge.textContent = '????';
+                modeBadge.textContent = '刷题模式';
                 modeBadge.className = 'practice-mode-badge practice';
                 document.getElementById('score-info').style.display = 'flex';
             }
             
-            // ?????
+            // 渲染答题卡
             renderQuestionNav();
             
-            // ????????????
+            // 设置计时器（先清除旧的）
             if (practiceTimer) {
                 clearInterval(practiceTimer);
                 practiceTimer = null;
@@ -1107,14 +1117,14 @@ async function startPractice(examMode = false) {
             
             renderQuestion();
         } else {
-            showToast('?????????????????', 'warning');
+            showToast('没有找到符合条件的题目，请调整设置', 'warning');
         }
     } catch (error) {
-        showToast('??????: ' + error.message, 'error');
+        showToast('加载题目失败: ' + error.message, 'error');
     }
 }
 
-// ?????????
+// 用相同设置再来一次
 function restartWithSameSettings() {
     if (lastPracticeSettings) {
         document.getElementById('practice-bank').value = lastPracticeSettings.bank || '';
@@ -1123,6 +1133,7 @@ function restartWithSameSettings() {
         }
         document.getElementById('practice-single-count').value = lastPracticeSettings.singleCount || 0;
         document.getElementById('practice-multi-count').value = lastPracticeSettings.multiCount || 0;
+        document.getElementById('practice-judge-count').value = lastPracticeSettings.judgeCount || 0;
         document.getElementById('enable-timer').checked = lastPracticeSettings.enableTimer;
         document.getElementById('practice-time').value = lastPracticeSettings.timeMinutes || 30;
         if (document.getElementById('shuffle-options')) {
@@ -1132,7 +1143,7 @@ function restartWithSameSettings() {
             document.getElementById('practice-mode').value = lastPracticeSettings.mode || 'random';
         }
         
-        // ?????????
+        // 根据保存的模式启动
         const mode = lastPracticeSettings.mode || 'random';
         switch (mode) {
             case 'random':
@@ -1155,11 +1166,11 @@ function restartWithSameSettings() {
     }
 }
 
-// ?????????????????????????
+// 渲染题目导航（分组显示单选和多选，支持可切换分页）
 function renderQuestionNav() {
     const grid = document.getElementById('question-nav-grid');
     
-    // ????????
+    // 分离单选和多选题
     const singleQuestions = [];
     const multiQuestions = [];
     practiceQuestions.forEach((q, i) => {
@@ -1170,16 +1181,16 @@ function renderQuestionNav() {
         }
     });
     
-    // ??????????
+    // 合并所有题目用于分页
     const allItems = [...singleQuestions, ...multiQuestions];
     const totalPages = Math.ceil(allItems.length / NAV_PAGE_SIZE);
     
-    // ????????
+    // 确保当前页码有效
     if (navCurrentPage < 1) navCurrentPage = 1;
     if (navCurrentPage > totalPages) navCurrentPage = totalPages;
     if (totalPages === 0) navCurrentPage = 1;
     
-    // ????????????????????????
+    // 自动切换到包含当前题目的页面（仅在非手动切换时）
     if (!manualNavPageChange) {
         const currentItemIndex = allItems.findIndex(item => item.index === currentQuestionIndex);
         if (currentItemIndex >= 0) {
@@ -1190,19 +1201,19 @@ function renderQuestionNav() {
         }
     }
     
-    // ??????????
+    // 计算当前页的题目范围
     const startIdx = (navCurrentPage - 1) * NAV_PAGE_SIZE;
     const endIdx = Math.min(startIdx + NAV_PAGE_SIZE, allItems.length);
     const pageItems = allItems.slice(startIdx, endIdx);
     
     let html = '';
     
-    // ???????????
+    // 分页控制（如果有多页）
     if (totalPages > 1) {
         html += '<div class="nav-pagination">';
         html += `<button class="nav-page-btn ${navCurrentPage <= 1 ? 'disabled' : ''}" onclick="changeNavPage(${navCurrentPage - 1})" ${navCurrentPage <= 1 ? 'disabled' : ''}><i class="fas fa-chevron-left"></i></button>`;
         
-        // ????
+        // 页码按钮
         for (let p = 1; p <= totalPages; p++) {
             const active = p === navCurrentPage ? 'active' : '';
             html += `<button class="nav-page-num ${active}" onclick="changeNavPage(${p})">${p}</button>`;
@@ -1212,33 +1223,33 @@ function renderQuestionNav() {
         html += '</div>';
     }
     
-    // ??????????????
+    // 找出当前页中单选和多选的分界
     let currentSection = null;
     
     pageItems.forEach((item) => {
         const itemType = item.question.type === 'multi' ? 'multi' : 'single';
         
-        // ????????????
+        // 检查是否需要添加分组标题
         if (currentSection !== itemType) {
-            // ???????
+            // 关闭上一个分组
             if (currentSection !== null) {
                 html += '</div></div>';
             }
             
-            // ?????
+            // 开始新分组
             currentSection = itemType;
             const totalCount = itemType === 'multi' ? multiQuestions.length : singleQuestions.length;
-            const title = itemType === 'multi' ? '???' : '???';
-            html += `<div class="nav-section"><div class="nav-section-title ${itemType === 'multi' ? 'multi' : ''}">${title} (${totalCount}?)</div>`;
+            const title = getTypeLabel(itemType);
+            html += `<div class="nav-section"><div class="nav-section-title ${itemType === 'multi' ? 'multi' : ''}">${title} (${totalCount}题)</div>`;
             html += '<div class="nav-section-grid">';
         }
         
         const result = questionResults[item.index];
         let statusClass = '';
         if (result?.answered) {
-            // ?????
+            // 已提交答案
             if (isExamMode) {
-                // ????????????????
+                // 模拟考试模式：仅标记已答（蓝色）
                 statusClass = 'answered';
             } else if (result.isCorrect === true) {
                 statusClass = 'answered correct';
@@ -1248,29 +1259,29 @@ function renderQuestionNav() {
                 statusClass = 'answered';
             }
         } else if (result?.userAnswer?.length > 0) {
-            // ???????????
+            // 已选择但未提交（蓝色）
             statusClass = 'selected';
         }
         const current = item.index === currentQuestionIndex ? 'current' : '';
-        const multiClass = item.question.type === 'multi' ? 'multi' : '';
+        const multiClass = getTypeClass(item.question.type);
         html += `<button class="nav-btn ${multiClass} ${statusClass} ${current}" onclick="goToQuestion(${item.index})">${item.index + 1}</button>`;
     });
     
-    // ????????
+    // 关闭最后一个分组
     if (currentSection !== null) {
         html += '</div></div>';
     }
     
     grid.innerHTML = html;
     
-    // ??????
+    // 更新已答题数
     const answeredCount = questionResults.filter(r => r.answered).length;
     document.getElementById('answered-count').textContent = answeredCount;
     document.getElementById('nav-total').textContent = practiceQuestions.length;
 }
 
-// ???????
-let manualNavPageChange = false; // ???????????
+// 切换答题卡页面
+let manualNavPageChange = false; // 标记是否是手动切换页面
 
 function changeNavPage(page) {
     const allCount = practiceQuestions.length;
@@ -1278,13 +1289,13 @@ function changeNavPage(page) {
     
     if (page >= 1 && page <= totalPages) {
         navCurrentPage = page;
-        manualNavPageChange = true; // ???????
+        manualNavPageChange = true; // 标记为手动切换
         renderQuestionNav();
-        manualNavPageChange = false; // ???????
+        manualNavPageChange = false; // 渲染完成后重置
     }
 }
 
-// ???????
+// 跳转到指定题目
 function goToQuestion(index) {
     if (index >= 0 && index < practiceQuestions.length) {
         currentQuestionIndex = index;
@@ -1300,7 +1311,7 @@ function updateTimer() {
     if (remainingTime <= 0) {
         clearInterval(practiceTimer);
         practiceTimer = null;
-        showToast('????', 'warning');
+        showToast('时间到！', 'warning');
         showPracticeResult();
     }
 }
@@ -1311,7 +1322,7 @@ function updateTimerDisplay() {
     const display = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     document.getElementById('timer-text').textContent = display;
     
-    // ????5?????
+    // 时间不足5分钟时变红
     const timerDisplay = document.getElementById('timer-display');
     if (remainingTime <= 300) {
         timerDisplay.classList.add('warning');
@@ -1358,51 +1369,54 @@ function renderQuestion() {
     const question = practiceQuestions[currentQuestionIndex];
     const result = questionResults[currentQuestionIndex];
     
-    // ????
+    // 更新进度
     document.getElementById('current-index').textContent = currentQuestionIndex + 1;
     document.getElementById('total-count').textContent = practiceQuestions.length;
     document.getElementById('correct-num').textContent = correctCount;
     document.getElementById('wrong-num').textContent = wrongCount;
     
-    // ????
-    document.getElementById('question-type').textContent = question.type === 'multi' ? '???' : '???';
-    document.getElementById('question-type').className = `question-type ${question.type === 'multi' ? 'multi' : ''}`;
+    // 渲染题目
+    document.getElementById('question-type').textContent = getTypeLabel(question.type);
+    document.getElementById('question-type').className = 'question-type ' + getTypeClass(question.type);
     document.getElementById('question-id').textContent = `#${question.id}`;
     document.getElementById('question-chapter').textContent = question.chapter;
     
-    // ??????????????
+    // 设置题目内容，自适应文本大小
     const contentEl = document.getElementById('question-content');
     contentEl.textContent = question.question;
     applyAdaptiveTextSize(contentEl);
     
-    // ????
+    // 渲染选项 — 判断题生成对/错选项
     const optionsList = document.getElementById('options-list');
-    const optionEntries = question.shuffledOptions || Object.entries(question.options);
+    var optionEntries = question.shuffledOptions || Object.entries(question.options);
+    if (question.type === 'judge') {
+        optionEntries = [['对', '对'], ['错', '错']];
+    }
     
-    // ???????????????????
+    // 模拟考试模式：允许随时修改答案，不锁定
     if (isExamMode) {
-        // ??????
+        // 恢复已选答案
         selectedAnswers = result.answered ? [...result.userAnswer] : [];
         
         optionsList.innerHTML = optionEntries.map(([key, value]) => {
             const isSelected = selectedAnswers.includes(key) ? 'selected' : '';
-            return `<button class="option-btn ${isSelected}" onclick="selectOption('${key}', ${question.type === 'multi'})" data-key="${key}">
+            return `<button class="option-btn ${isSelected}" onclick="selectOption('${key}', ${isMultiSelect(question.type)})" data-key="${key}">
                 <span class="option-key">${key}</span>
                 <span class="option-text">${value}</span>
             </button>`;
         }).join('');
         
         document.getElementById('answer-result').style.display = 'none';
-        document.getElementById('submit-btn').style.display = 'none'; // ???????????
+        document.getElementById('submit-btn').style.display = 'none'; // 模拟考试不需要提交按钮
         document.getElementById('next-btn').style.display = 'inline-flex';
         
         if (currentQuestionIndex === practiceQuestions.length - 1) {
-            document.getElementById('next-btn').innerHTML = '???? <i class="fas fa-paper-plane"></i>';
+            document.getElementById('next-btn').innerHTML = '提交试卷 <i class="fas fa-paper-plane"></i>';
         } else {
-            document.getElementById('next-btn').innerHTML = '??? <i class="fas fa-arrow-right"></i>';
+            document.getElementById('next-btn').innerHTML = '下一题 <i class="fas fa-arrow-right"></i>';
         }
     } else if (result.answered) {
-        // ??????????????
+        // 刷题模式已作答：显示完整结果
         optionsList.innerHTML = optionEntries.map(([key, value]) => {
             const isCorrect = result.correctAnswer.includes(key) ? 'correct' : '';
             const isWrong = result.userAnswer.includes(key) && !result.correctAnswer.includes(key) ? 'wrong' : '';
@@ -1413,30 +1427,30 @@ function renderQuestion() {
             </button>`;
         }).join('');
         
-        // ????????????????????
+        // 隐藏结果提示框（只通过选项颜色表示正误）
         const resultDiv = document.getElementById('answer-result');
         resultDiv.style.display = 'none';
         
-        // ????????????
+        // 已作答的题目隐藏提交按钮
         document.getElementById('submit-btn').style.display = 'none';
         document.getElementById('next-btn').style.display = 'inline-flex';
         
-        // ?????????
+        // 更新下一题按钮文字
         if (currentQuestionIndex === practiceQuestions.length - 1) {
-            document.getElementById('next-btn').innerHTML = '???? <i class="fas fa-flag-checkered"></i>';
+            document.getElementById('next-btn').innerHTML = '查看结果 <i class="fas fa-flag-checkered"></i>';
         } else {
-            document.getElementById('next-btn').innerHTML = '??? <i class="fas fa-arrow-right"></i>';
+            document.getElementById('next-btn').innerHTML = '下一题 <i class="fas fa-arrow-right"></i>';
         }
     } else {
-        // ????????????
+        // 刷题模式未作答：正常渲染
         optionsList.innerHTML = optionEntries.map(([key, value]) => `
-            <button class="option-btn" onclick="selectOption('${key}', ${question.type === 'multi'})" data-key="${key}">
+            <button class="option-btn" onclick="selectOption('${key}', ${isMultiSelect(question.type)})" data-key="${key}">
                 <span class="option-key">${key}</span>
                 <span class="option-text">${value}</span>
             </button>
         `).join('');
         
-        // ????
+        // 重置状态
         selectedAnswers = [];
         document.getElementById('answer-result').style.display = 'none';
         document.getElementById('submit-btn').style.display = 'inline-flex';
@@ -1450,7 +1464,7 @@ function renderQuestion() {
         applyAdaptiveOptionText(optionTextEls[i]);
     }
     
-    // ??????
+    // 更新导航面板
     renderQuestionNav();
 }
 
@@ -1460,7 +1474,7 @@ function selectOption(key, isMulti) {
     if (btn.classList.contains('disabled')) return;
     
     if (isMulti) {
-        // ???
+        // 多选题
         if (selectedAnswers.includes(key)) {
             selectedAnswers = selectedAnswers.filter(k => k !== key);
             btn.classList.remove('selected');
@@ -1469,58 +1483,58 @@ function selectOption(key, isMulti) {
             btn.classList.add('selected');
         }
     } else {
-        // ???
+        // 单选题
         document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
         selectedAnswers = [key];
     }
     
-    // ?????????????????????
+    // 模拟考试模式：自动保存选择的答案（不判分）
     if (isExamMode && selectedAnswers.length > 0) {
         saveExamAnswer();
     }
 }
 
-// ????????????????
+// 模拟考试模式：仅保存答案，不判分
 function saveExamAnswer() {
     if (!isExamMode) return;
     const question = practiceQuestions[currentQuestionIndex];
-    // ?????????????
+    // 使用打乱后的答案（如果有）
     const correctAnswer = question.shuffledAnswer || question.answer || [];
     questionResults[currentQuestionIndex] = {
         answered: true,
         userAnswer: [...selectedAnswers],
         correctAnswer: correctAnswer,
-        isCorrect: null  // ????
+        isCorrect: null  // 暂不判分
     };
     renderQuestionNav();
 }
 
-// ???????????????ABCD?????????????
+// 洗牌函数：只打乱选项内容，保持ABCD顺序不变，同时返回答案映射
 function shuffleEntries(entries, originalAnswer) {
-    const keys = entries.map(([key]) => key).sort(); // ?????? A, B, C, D...
+    const keys = entries.map(([key]) => key).sort(); // 保持字母顺序 A, B, C, D...
     const values = entries.map(([, value]) => value);
     const originalKeys = entries.map(([key]) => key).sort();
     
-    // ????????????
+    // 创建原始值到原始键的映射
     const valueToOriginalKey = {};
     entries.forEach(([key, value]) => {
         valueToOriginalKey[value] = key;
     });
     
-    // ????
+    // 只打乱值
     for (let i = values.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [values[i], values[j]] = [values[j], values[i]];
     }
     
-    // ?????????????????????
+    // 创建新键到值的映射，以及原始键到新键的映射
     const newEntries = keys.map((key, idx) => [key, values[idx]]);
     
-    // ????????????? -> ?????
-    // ????D??????D??????A??????????A
+    // 创建答案映射：原始答案字母 -> 新答案字母
+    // 例如原本D是正确答案，D的内容现在在A位置，那么新答案就是A
     const answerMap = {};
-    const reverseAnswerMap = {}; // ??? -> ???????????????????
+    const reverseAnswerMap = {}; // 新选项 -> 原始选项（用于将用户选择转回原始选项）
     newEntries.forEach(([newKey, value]) => {
         const originalKey = valueToOriginalKey[value];
         if (originalKey) {
@@ -1529,31 +1543,31 @@ function shuffleEntries(entries, originalAnswer) {
         }
     });
     
-    // ??????
+    // 转换正确答案
     const shuffledAnswer = (originalAnswer || []).map(ans => answerMap[ans] || ans);
     
     return {
         entries: newEntries,
         shuffledAnswer: shuffledAnswer,
-        reverseAnswerMap: reverseAnswerMap // ??????
+        reverseAnswerMap: reverseAnswerMap // 添加反向映射
     };
 }
 
 async function submitAnswer() {
     if (selectedAnswers.length === 0) {
-        showToast('?????', 'warning');
+        showToast('请选择答案', 'warning');
         return;
     }
     
     const question = practiceQuestions[currentQuestionIndex];
     
-    // ??????????????????????
+    // 使用打乱后的答案（如果有），否则使用原始答案
     const correctAnswer = question.shuffledAnswer || question.answer || [];
     
-    // ???????????
+    // 在前端判断答案是否正确
     const isCorrect = arraysEqual([...selectedAnswers].sort(), [...correctAnswer].sort());
     
-    // ??????
+    // 保存作答结果
     questionResults[currentQuestionIndex] = {
         answered: true,
         userAnswer: [...selectedAnswers],
@@ -1561,31 +1575,31 @@ async function submitAnswer() {
         isCorrect: isCorrect
     };
     
-    // ???????????????????????calculateExamResults??????
+    // 如果答错且非考试模式，添加到错题本（考试模式在calculateExamResults中统一添加）
     if (!isCorrect && !isExamMode) {
         addToWrongbook(question, selectedAnswers);
     }
     
     if (isExamMode) {
-        // ??????????????????
+        // 模拟考试模式：不显示答案，只标记已答
         document.querySelectorAll('.option-btn').forEach(btn => {
             btn.classList.add('disabled');
         });
         
-        // ????
+        // 更新导航
         renderQuestionNav();
         
-        // ????
+        // 切换按钮
         document.getElementById('submit-btn').style.display = 'none';
         document.getElementById('next-btn').style.display = 'inline-flex';
         
         if (currentQuestionIndex === practiceQuestions.length - 1) {
-            document.getElementById('next-btn').innerHTML = '???? <i class="fas fa-paper-plane"></i>';
+            document.getElementById('next-btn').innerHTML = '提交试卷 <i class="fas fa-paper-plane"></i>';
         } else {
-            document.getElementById('next-btn').innerHTML = '??? <i class="fas fa-arrow-right"></i>';
+            document.getElementById('next-btn').innerHTML = '下一题 <i class="fas fa-arrow-right"></i>';
         }
     } else {
-        // ?????????
+        // 刷题模式：显示答案
         document.querySelectorAll('.option-btn').forEach(btn => {
             btn.classList.add('disabled');
             const key = btn.dataset.key;
@@ -1597,7 +1611,7 @@ async function submitAnswer() {
             }
         });
         
-        // ????????????????????
+        // 隐藏结果提示框（只通过选项颜色表示正误）
         const resultDiv = document.getElementById('answer-result');
         resultDiv.style.display = 'none';
         
@@ -1607,17 +1621,17 @@ async function submitAnswer() {
             wrongCount++;
         }
         
-        // ????
+        // 更新计数
         document.getElementById('correct-num').textContent = correctCount;
         document.getElementById('wrong-num').textContent = wrongCount;
         
-        // ????
+        // 切换按钮
         document.getElementById('submit-btn').style.display = 'none';
         document.getElementById('next-btn').style.display = 'inline-flex';
         
-        // ???????
+        // 如果是最后一题
         if (currentQuestionIndex === practiceQuestions.length - 1) {
-            document.getElementById('next-btn').innerHTML = '???? <i class="fas fa-flag-checkered"></i>';
+            document.getElementById('next-btn').innerHTML = '查看结果 <i class="fas fa-flag-checkered"></i>';
         }
     }
 }
@@ -1634,9 +1648,9 @@ function nextQuestion() {
         currentQuestionIndex++;
         renderQuestion();
     } else {
-        // ????
+        // 显示结果
         if (isExamMode) {
-            // ?????????????????????????????
+            // 模拟考试模式：先计算所有答案，等待错题添加完成后再显示结果
             calculateExamResults().then(() => {
                 showPracticeResult();
             });
@@ -1646,21 +1660,21 @@ function nextQuestion() {
     }
 }
 
-// ???????? - ????
+// 计算模拟考试结果 - 最终判分
 async function calculateExamResults() {
     correctCount = 0;
     wrongCount = 0;
     
-    // ??????
+    // 收集所有错题
     const wrongQuestions = [];
     
     questionResults.forEach((result, index) => {
         const question = practiceQuestions[index];
-        // ??????????????????????
+        // 使用打乱后的答案（如果有），否则使用原始答案
         const correctAnswer = question.shuffledAnswer || question.answer || [];
         
         if (result.answered && result.userAnswer.length > 0) {
-            // ????????
+            // 判断答案是否正确
             const isCorrect = arraysEqual(result.userAnswer.sort(), correctAnswer.sort());
             result.isCorrect = isCorrect;
             result.correctAnswer = correctAnswer;
@@ -1669,24 +1683,24 @@ async function calculateExamResults() {
                 correctCount++;
             } else {
                 wrongCount++;
-                // ???????????
+                // 收集错题，稍后逐个添加
                 wrongQuestions.push({ question, userAnswer: result.userAnswer });
             }
         } else {
-            // ?????
+            // 未答题算错
             result.isCorrect = false;
             result.correctAnswer = correctAnswer;
             wrongCount++;
         }
     });
     
-    // ???????????????????
+    // 逐个添加错题到错题本，避免并发写入冲突
     for (const { question, userAnswer } of wrongQuestions) {
         await addToWrongbook(question, userAnswer);
     }
 }
 
-// ???????????????
+// 辅助函数：比较两个数组是否相等
 function arraysEqual(a, b) {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
@@ -1696,15 +1710,15 @@ function arraysEqual(a, b) {
 }
 
 function showPracticeResult() {
-    // ?????
+    // 停止计时器
     if (practiceTimer) {
         clearInterval(practiceTimer);
         practiceTimer = null;
     }
     
-    // ??????????? + ???????
+    // 计算用时：当前会话时间 + 之前读档的时间
     const endTime = new Date();
-    const currentSessionTime = Math.floor((endTime - practiceStartTime) / 1000); // ?
+    const currentSessionTime = Math.floor((endTime - practiceStartTime) / 1000); // 秒
     const totalTimeSpent = loadedElapsedTime + currentSessionTime;
     const minutes = Math.floor(totalTimeSpent / 60);
     const seconds = totalTimeSpent % 60;
@@ -1724,22 +1738,22 @@ function showPracticeResult() {
     document.getElementById('result-rate').textContent = rate + '%';
     document.getElementById('result-time').textContent = timeDisplay;
     
-    // ????????????
+    // 完成后删除进度（如果有）
     if (currentProgressId) {
         deleteProgress(currentProgressId, true);
         currentProgressId = null;
     }
     
-    // ??????
+    // 重置已用时间
     loadedElapsedTime = 0;
     
-    // ????????
+    // 渲染答题详情导航
     renderResultNav();
-    // ???????
+    // 默认显示第一题
     showResultQuestion(0);
     
-    // ???????
-    const playerName = document.getElementById('player-name')?.value?.trim() || '??';
+    // 保存成绩到排名
+    const playerName = document.getElementById('player-name')?.value?.trim() || '匿名';
     saveRanking({
         name: playerName,
         total: total,
@@ -1751,7 +1765,7 @@ function showPracticeResult() {
     });
 }
 
-// ?????????
+// 渲染结果页题目导航
 function renderResultNav() {
     const grid = document.getElementById('result-nav-grid');
     
@@ -1763,22 +1777,22 @@ function renderResultNav() {
     }).join('');
 }
 
-// ????????????
+// 显示结果页中某道题的详情
 function showResultQuestion(index) {
     const question = practiceQuestions[index];
     const result = questionResults[index];
     const detailDiv = document.getElementById('result-question-detail');
     
-    // ????????
+    // 更新导航按钮高亮
     document.querySelectorAll('.result-nav-btn').forEach((btn, i) => {
         btn.classList.toggle('current', i === index);
     });
     
-    const typeText = question.type === 'multi' ? '???' : '???';
+    const typeText = getTypeLabel(question.type);
     const statusClass = result.answered ? (result.isCorrect ? 'correct' : 'wrong') : 'wrong';
-    const statusText = result.answered ? (result.isCorrect ? '? ??' : '? ??') : '? ???';
+    const statusText = result.answered ? (result.isCorrect ? '✓ 正确' : '✗ 错误') : '✗ 未作答';
     
-    // ????????????????????????
+    // 使用打乱后的选项顺序（如果有），保证与考试时一致
     const optionEntries = question.shuffledOptions || Object.entries(question.options);
     
     let optionsHtml = optionEntries.map(([key, value]) => {
@@ -1802,36 +1816,40 @@ function showResultQuestion(index) {
         </div>`;
     }).join('');
     
-    const userAnswerText = result.userAnswer.length > 0 ? result.userAnswer.join('') : '???';
+    const userAnswerText = result.userAnswer.length > 0 ? result.userAnswer.join('') : '未作答';
     const correctAnswerText = result.correctAnswer.join('');
     
     detailDiv.innerHTML = `
         <div class="result-question-header">
-            <span class="question-type ${question.type === 'multi' ? 'multi' : ''}">${typeText}</span>
+            <span class="question-type ${getTypeClass(question.type)}">${typeText}</span>
             <span class="result-question-status ${statusClass}">${statusText}</span>
             <span class="question-chapter">${question.chapter}</span>
         </div>
         <div class="result-question-content">${index + 1}. ${question.question}</div>
         <div class="result-options-list">${optionsHtml}</div>
         <div class="result-answer-info">
-            <span class="your-answer"><i class="fas fa-user"></i> ????: ${userAnswerText}</span>
-            <span class="correct-answer"><i class="fas fa-check"></i> ????: ${correctAnswerText}</span>
+            <span class="your-answer"><i class="fas fa-user"></i> 你的答案: ${userAnswerText}</span>
+            <span class="correct-answer"><i class="fas fa-check"></i> 正确答案: ${correctAnswerText}</span>
         </div>
     `;
 }
 
-// ==================== ?? ====================
+// ==================== 设置 ====================
 async function loadConfig() {
     try {
         const data = await window.storageService.getConfig();
 
         if (data.success) {
-            document.getElementById('data-path').value = data.config.data_path || '';
-            document.getElementById('current-data-file').textContent =
-                (data.config.data_path || '') + '/' + (data.config.questions_file || '');
+            var dataPathEl = document.getElementById('data-path');
+            if (dataPathEl) dataPathEl.value = data.config.data_path || '';
+            var currentDataFileEl = document.getElementById('current-data-file');
+            if (currentDataFileEl) {
+                currentDataFileEl.textContent =
+                    (data.config.data_path || '') + '/' + (data.config.questions_file || '');
+            }
         }
     } catch (error) {
-        console.error('??????:', error);
+        console.error('加载配置失败:', error);
     }
 }
 
@@ -1839,7 +1857,7 @@ async function saveSettings() {
     const dataPath = document.getElementById('data-path').value.trim();
     
     if (!dataPath) {
-        showToast('?????????', 'warning');
+        showToast('请输入数据存储路径', 'warning');
         return;
     }
     
@@ -1852,23 +1870,23 @@ async function saveSettings() {
         const data = await window.storageService.saveConfig(configData);
         
         if (data.success) {
-            showToast('?????', 'success');
+            showToast('设置已保存', 'success');
             loadConfig();
         } else {
             showToast(data.error, 'error');
         }
     } catch (error) {
-        showToast('??????: ' + error.message, 'error');
+        showToast('保存设置失败: ' + error.message, 'error');
     }
 }
 
 function clearAllData() {
     showConfirmModal(
-        '??????',
-        '?????????????????????',
+        '清空所有数据',
+        '确定要清空所有题库数据吗？该操作不可恢复！',
         async () => {
             try {
-                // ?????????
+                // 获取所有题库并删除
                 const response = await fetch(`${API_BASE}/api/banks`);
                 const data = await response.json();
                 
@@ -1878,11 +1896,11 @@ function clearAllData() {
                             method: 'DELETE'
                         });
                     }
-                    showToast('???????', 'success');
+                    showToast('所有数据已清空', 'success');
                     loadStats();
                 }
             } catch (error) {
-                showToast('??????: ' + error.message, 'error');
+                showToast('清空数据失败: ' + error.message, 'error');
             }
         }
     );
@@ -1890,12 +1908,12 @@ function clearAllData() {
 
 function confirmClearCache() {
     showConfirmModal(
-        '??????',
-        '?????????????????????????????????????????',
+        '清空本地缓存',
+        '此操作将清空排行榜、错题本、做题进度等本地缓存数据，题库内容不会被删除。是否继续？',
         () => {
             showConfirmModal(
-                '????',
-                '?????????????????????',
+                '二次确认',
+                '确定要清空所有本地缓存吗？此操作不可恢复！',
                 async () => {
                     try {
                         await window.storageService.clearAllCacheData();
@@ -1904,11 +1922,11 @@ function confirmClearCache() {
                         localStorage.removeItem('quiz_progress');
                         localStorage.removeItem('quiz_player_name');
                         localStorage.removeItem('mobileMenuBtnPos');
-                        showToast('???????', 'success');
+                        showToast('本地缓存已清空', 'success');
                         loadStats();
                         loadBankChapters();
                     } catch (error) {
-                        showToast('??????: ' + error.message, 'error');
+                        showToast('清空缓存失败: ' + error.message, 'error');
                     }
                 }
             );
@@ -1916,7 +1934,7 @@ function confirmClearCache() {
     );
 }
 
-// ==================== ???? ====================
+// ==================== 工具函数 ====================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -1957,10 +1975,10 @@ function closeModal() {
 }
 
 function browseDataPath() {
-    showToast('????????????', 'warning');
+    showToast('请在输入框中直接输入路径', 'warning');
 }
 
-// ==================== ???? ====================
+// ==================== 排名系统 ====================
 async function loadRankings() {
     try {
         const data = await window.storageService.getRankings();
@@ -1969,7 +1987,7 @@ async function loadRankings() {
             renderRankings(data.rankings);
         }
     } catch (error) {
-        console.error('??????:', error);
+        console.error('加载排名失败:', error);
     }
 }
 
@@ -1978,11 +1996,11 @@ function renderRankings(rankings) {
     if (!container) return;
     
     if (!rankings || rankings.length === 0) {
-        container.innerHTML = '<div class="empty-ranking">????</div>';
+        container.innerHTML = '<div class="empty-ranking">暂无记录</div>';
         return;
     }
     
-    // ????????????????????????
+    // 按正确率和用时排序（正确率高优先，用时短次优先）
     rankings.sort((a, b) => {
         if (b.accuracy !== a.accuracy) {
             return b.accuracy - a.accuracy;
@@ -1992,7 +2010,7 @@ function renderRankings(rankings) {
     
     const html = rankings.slice(0, 20).map((item, index) => {
         const rankClass = index < 3 ? `top-${index + 1}` : '';
-        const name = item.name || '??';
+        const name = item.name || '匿名';
         const correct = item.correct || 0;
         const total = item.total || 0;
         const timeDisplay = item.time_display || '00:00';
@@ -2003,7 +2021,7 @@ function renderRankings(rankings) {
                 <div class="ranking-rank">${index + 1}</div>
                 <div class="ranking-info">
                     <span class="ranking-name">${escapeHtml(name)}</span>
-                    <span class="ranking-meta">${correct}/${total} ? ${timeDisplay}</span>
+                    <span class="ranking-meta">${correct}/${total} · ${timeDisplay}</span>
                 </div>
                 <div class="ranking-accuracy">${accuracy}%</div>
             </div>
@@ -2021,26 +2039,26 @@ async function saveRanking(record) {
             loadRankings();
         }
     } catch (error) {
-        console.error('??????:', error);
+        console.error('保存排名失败:', error);
     }
 }
 
 async function clearRankings() {
     showConfirmModal(
-        '????',
-        '?????????????????????',
+        '清空排名',
+        '确定要清空所有排名记录吗？此操作不可恢复。',
         async () => {
             try {
                 const data = await window.storageService.clearRankings();
                 
                 if (data.success) {
-                    showToast('?????', 'success');
+                    showToast('排名已清空', 'success');
                     loadRankings();
                 } else {
-                    showToast('????: ' + (data.error || data.message), 'error');
+                    showToast('清空失败: ' + (data.error || data.message), 'error');
                 }
             } catch (error) {
-                showToast('????: ' + error.message, 'error');
+                showToast('清空失败: ' + error.message, 'error');
             }
         }
     );
@@ -2052,7 +2070,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ==================== ?????? ====================
+// ==================== 做题模式切换 ====================
 function onPracticeModeChange() {
     const mode = document.getElementById('practice-mode').value;
     currentPracticeMode = mode;
@@ -2062,21 +2080,21 @@ function onPracticeModeChange() {
     const singleCountInput = document.getElementById('practice-single-count');
     const multiCountInput = document.getElementById('practice-multi-count');
     
-    // ??????????????
+    // 顺序做题模式显示打乱题目选项
     if (shuffleQuestionsRow) {
         shuffleQuestionsRow.style.display = mode === 'sequence' ? 'block' : 'none';
     }
     
-    // ??????
+    // 更新按钮文字
     const modeNames = {
-        'random': '????',
-        'exam': '????',
-        'sequence': '????',
-        'wrong': '????'
+        'random': '开始刷题',
+        'exam': '开始考试',
+        'sequence': '开始做题',
+        'wrong': '开始练习'
     };
-    startBtn.innerHTML = `<i class="fas fa-play"></i> ${modeNames[mode] || '??'}`;
+    startBtn.innerHTML = `<i class="fas fa-play"></i> ${modeNames[mode] || '开始'}`;
     
-    // ???????????
+    // 错题模式下更新可用题数
     if (mode === 'wrong') {
         updateWrongQuestionStats();
     } else {
@@ -2085,11 +2103,11 @@ function onPracticeModeChange() {
 
     var statsTitle = document.querySelector('#stats-preview h3');
     if (statsTitle) {
-        statsTitle.textContent = mode === 'wrong' ? '????' : '????';
+        statsTitle.textContent = mode === 'wrong' ? '错题统计' : '题库统计';
     }
 }
 
-// ????????
+// 更新错题数量统计
 async function updateWrongQuestionStats() {
     try {
         const bank = document.getElementById('practice-bank').value;
@@ -2099,29 +2117,33 @@ async function updateWrongQuestionStats() {
         if (data.success) {
             let singleCount = 0;
             let multiCount = 0;
+            let judgeCount = 0;
             
             if (bank) {
                 const bankStats = data.stats[bank];
                 if (bankStats) {
                     singleCount = bankStats.single || 0;
                     multiCount = bankStats.multi || 0;
+                    judgeCount = bankStats.judge || 0;
                 }
             } else {
                 Object.values(data.stats).forEach(stat => {
                     singleCount += stat.single || 0;
                     multiCount += stat.multi || 0;
+                    judgeCount += stat.judge || 0;
                 });
             }
             
             document.getElementById('available-single').textContent = singleCount;
             document.getElementById('available-multi').textContent = multiCount;
+            document.getElementById('available-judge').textContent = judgeCount;
         }
     } catch (error) {
-        console.error('????????:', error);
+        console.error('更新错题统计失败:', error);
     }
 }
 
-// ????????
+// 根据模式开始练习
 function startPracticeByMode() {
     const mode = document.getElementById('practice-mode').value;
     currentPracticeMode = mode;
@@ -2144,7 +2166,7 @@ function startPracticeByMode() {
     }
 }
 
-// ??????
+// 顺序做题模式
 async function startSequencePractice() {
     const bank = document.getElementById('practice-bank').value;
     const chapter = document.getElementById('practice-chapter')?.value || '';
@@ -2154,7 +2176,7 @@ async function startSequencePractice() {
     const timeMinutes = parseInt(document.getElementById('practice-time').value) || 30;
     
     if (!bank) {
-        showToast('???????????', 'warning');
+        showToast('顺序做题模式请选择题库', 'warning');
         return;
     }
     
@@ -2189,14 +2211,14 @@ async function startSequencePractice() {
             
             initPracticeSession(enableTimer, timeMinutes, false);
         } else {
-            showToast('???????????', 'warning');
+            showToast('没有找到符合条件的题目', 'warning');
         }
     } catch (error) {
-        showToast('??????: ' + error.message, 'error');
+        showToast('加载题目失败: ' + error.message, 'error');
     }
 }
 
-// ??????
+// 错题练习模式
 async function startWrongPractice() {
     const bank = document.getElementById('practice-bank').value;
     const singleCount = parseInt(document.getElementById('practice-single-count').value) || 0;
@@ -2206,7 +2228,7 @@ async function startWrongPractice() {
     const timeMinutes = parseInt(document.getElementById('practice-time').value) || 30;
     
     if (singleCount === 0 && multiCount === 0) {
-        showToast('????????????', 'warning');
+        showToast('请至少设置一种题型的数量', 'warning');
         return;
     }
     
@@ -2240,14 +2262,14 @@ async function startWrongPractice() {
             
             initPracticeSession(enableTimer, timeMinutes, false);
         } else {
-            showToast('?????????????', 'warning');
+            showToast('错题本中没有符合条件的题目', 'warning');
         }
     } catch (error) {
-        showToast('??????: ' + error.message, 'error');
+        showToast('加载错题失败: ' + error.message, 'error');
     }
 }
 
-// ?????????????
+// 初始化练习会话（公共逻辑）
 function initPracticeSession(enableTimer, timeMinutes, examMode) {
     currentQuestionIndex = 0;
     correctCount = 0;
@@ -2255,9 +2277,9 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     selectedAnswers = [];
     practiceStartTime = new Date();
     isExamMode = examMode;
-    navCurrentPage = 1; // ???????
+    navCurrentPage = 1; // 重置答题卡页码
     
-    // ???????????????
+    // 重置进度相关变量（新建练习时）
     currentProgressId = null;
     loadedElapsedTime = 0;
     
@@ -2273,23 +2295,23 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     document.getElementById('practice-result').style.display = 'none';
     document.getElementById('practice-header-info').style.display = 'flex';
     
-    // ????????
+    // 显示并展开答题卡
     const navPanel = document.getElementById('question-nav-panel');
     navPanel.style.display = 'block';
-    navPanel.classList.remove('collapsed'); // ?????????
+    navPanel.classList.remove('collapsed'); // 移除折叠状态即展开
     
-    // ????????????
+    // 进入刷题后折叠排行榜面板
     document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
     
-    // ??????
+    // 设置模式标识
     const modeBadge = document.getElementById('practice-mode-badge');
     const modeTexts = {
-        'random': '????',
-        'exam': '????',
-        'sequence': '????',
-        'wrong': '????'
+        'random': '刷题模式',
+        'exam': '模拟考试',
+        'sequence': '顺序做题',
+        'wrong': '错题练习'
     };
-    modeBadge.textContent = modeTexts[currentPracticeMode] || '????';
+    modeBadge.textContent = modeTexts[currentPracticeMode] || '刷题模式';
     modeBadge.className = `practice-mode-badge ${currentPracticeMode}`;
     
     if (isExamMode) {
@@ -2300,7 +2322,7 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     
     renderQuestionNav();
     
-    // ????????????
+    // 设置计时器（先清除旧的）
     if (practiceTimer) {
         clearInterval(practiceTimer);
         practiceTimer = null;
@@ -2317,7 +2339,7 @@ function initPracticeSession(enableTimer, timeMinutes, examMode) {
     renderQuestion();
 }
 
-// ==================== ????? ====================
+// ==================== 错题本功能 ====================
 async function loadWrongBanks() {
     try {
         const data = await window.storageService.getWrongbookStats();
@@ -2330,17 +2352,17 @@ async function loadWrongBanks() {
                     <div class="bank-info" onclick="browseWrongBank('${bankName}')">
                         <div class="bank-name">${bankName}</div>
                         <div class="bank-meta">
-                            ??: ${stats.single}? | ??: ${stats.multi}?
+                            单选: ${stats.single}题 | 多选: ${stats.multi}题
                         </div>
                     </div>
                     <div class="bank-stats">
-                        <span class="bank-count wrong-count-badge">${stats.total} ???</span>
+                        <span class="bank-count wrong-count-badge">${stats.total} 道错题</span>
                         <div class="bank-actions">
                             <button class="btn btn-secondary btn-small" onclick="browseWrongBank('${bankName}')">
-                                <i class="fas fa-eye"></i> ??
+                                <i class="fas fa-eye"></i> 查看
                             </button>
                             <button class="btn btn-danger btn-small" onclick="confirmClearWrongBank('${bankName}')">
-                                <i class="fas fa-trash"></i> ??
+                                <i class="fas fa-trash"></i> 清空
                             </button>
                         </div>
                     </div>
@@ -2350,7 +2372,7 @@ async function loadWrongBanks() {
             bankList.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-smile"></i>
-                    <p>???????????</p>
+                    <p>错题本为空，继续保持！</p>
                 </div>
             `;
         }
@@ -2358,8 +2380,8 @@ async function loadWrongBanks() {
         document.getElementById('wrong-question-browser').style.display = 'none';
         document.getElementById('wrong-bank-list').style.display = 'grid';
     } catch (error) {
-        console.error('???????:', error);
-        showToast('???????', 'error');
+        console.error('加载错题本失败:', error);
+        showToast('加载错题本失败', 'error');
     }
 }
 
@@ -2370,7 +2392,7 @@ function showWrongBankList() {
 
 async function browseWrongBank(bankName) {
     currentWrongBankName = bankName;
-    document.getElementById('wrong-current-bank-name').textContent = bankName + ' - ??';
+    document.getElementById('wrong-current-bank-name').textContent = bankName + ' - 错题';
     document.getElementById('wrong-bank-list').style.display = 'none';
     document.getElementById('wrong-question-browser').style.display = 'block';
     
@@ -2386,14 +2408,14 @@ async function loadWrongQuestions(bankName) {
         const list = data.wrong_questions || data.questions;
         if (data.success && list && list.length > 0) {
             questionList.innerHTML = list.map((q, index) => `
-                <div class="question-item ${q.type === 'multi' ? 'multi' : ''}">
+                <div class="question-item ${getTypeClass(q.type)}">
                     <div class="question-header">
-                        <span class="question-type ${q.type === 'multi' ? 'multi' : ''}">
-                            ${q.type === 'multi' ? '???' : '???'}
+                        <span class="question-type ${getTypeClass(q.type)}">
+                            ${getTypeLabel(q.type)}
                         </span>
-                        <span class="question-id-badge" title="????">#${q.id}</span>
+                        <span class="question-id-badge" title="题目编号">#${q.id}</span>
                         <span class="question-chapter">${q.chapter}</span>
-                        <span class="wrong-count-badge" style="margin-left: auto;">?${q.wrong_count || 1}?</span>
+                        <span class="wrong-count-badge" style="margin-left: auto;">错${q.wrong_count || 1}次</span>
                     </div>
                     <div class="question-content">${index + 1}. ${q.question}</div>
                     <div class="question-options">
@@ -2404,12 +2426,12 @@ async function loadWrongQuestions(bankName) {
                         }).join('')}
                     </div>
                     <div class="question-answer">
-                        <i class="fas fa-check-circle"></i> ????: ${q.answer.join('')}
-                        ${q.last_wrong_answer ? `<span style="margin-left:15px; color:var(--danger-color);"><i class="fas fa-times-circle"></i> ????: ${q.last_wrong_answer.join('')}</span>` : ''}
+                        <i class="fas fa-check-circle"></i> 正确答案: ${q.answer.join('')}
+                        ${q.last_wrong_answer ? `<span style="margin-left:15px; color:var(--danger-color);"><i class="fas fa-times-circle"></i> 上次答案: ${q.last_wrong_answer.join('')}</span>` : ''}
                     </div>
                     <div class="question-actions">
                         <button class="btn btn-success btn-small" onclick="removeFromWrongbook('${q.id}')">
-                            <i class="fas fa-check"></i> ???
+                            <i class="fas fa-check"></i> 已掌握
                         </button>
                     </div>
                 </div>
@@ -2418,13 +2440,13 @@ async function loadWrongQuestions(bankName) {
             questionList.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-smile"></i>
-                    <p>???????</p>
+                    <p>此题库暂无错题</p>
                 </div>
             `;
         }
     } catch (error) {
-        console.error('??????:', error);
-        showToast('??????', 'error');
+        console.error('加载错题失败:', error);
+        showToast('加载错题失败', 'error');
     }
 }
 
@@ -2433,42 +2455,42 @@ async function removeFromWrongbook(questionId) {
         const data = await window.storageService.removeWrongQuestion(questionId);
         
         if (data.success) {
-            showToast('???????', 'success');
-            // ????????????????????
+            showToast('已从错题本移除', 'success');
+            // 如果在刷题模式中移除了错题，也要更新状态
             if (currentPage === 'practice' && practiceQuestions[currentQuestionIndex] && practiceQuestions[currentQuestionIndex].id === questionId) {
-                // ?????????
+                // 可选：更新界面状态
             }
-            // ?????????????
+            // 如果在错题本页面，刷新列表
             if (currentPage === 'wrongbook') {
                 loadWrongQuestions(currentWrongBankName);
             }
         } else {
-            showToast(data.error || '????', 'error');
+            showToast(data.error || '删除失败', 'error');
         }
     } catch (error) {
-        showToast('????: ' + error.message, 'error');
+        showToast('移除失败: ' + error.message, 'error');
     }
 }
 
 function confirmClearWrongBank(bankName) {
     showConfirmModal(
-        '????',
-        `?????"${bankName}"???????`,
+        '清空错题',
+        `确定要清空"${bankName}"的所有错题吗？`,
         async () => {
             try {
                 let data;
                 if (isElectron) {
-                    // Electron ?????????????????????? clearWrongbook (????)
-                    // ???????? preload/main ?? clearWrongbookByBank
-                    // ???? clearWrongbook ?????????
-                    // ????????? clearWrongbookByBank ? Electron API
-                    // ???????????????????????
-                    // ??????????? main.js ?? clearWrongbook???????
-                    // ??????? Electron ???????
+                    // Electron 暂时不支持按题库清空，这里先模拟一下或者调用 clearWrongbook (清除所有)
+                    // 但正确的做法是在 preload/main 添加 clearWrongbookByBank
+                    // 目前暂用 clearWrongbook 代替，或者提示用户
+                    // 修正：我们应该添加 clearWrongbookByBank 到 Electron API
+                    // 暂时这里为了演示改用全部清空逻辑，或者简单实现
+                    // 由于时间关系，我们假设 main.js 只有 clearWrongbook，这里需要注意
+                    // 这里我们先跳过 Electron 实现，或者提示
                     
-                    // ??????? main.js ?????????????
-                    // ???????????????????????????????????
-                     showToast('Electron????????????????', 'warning');
+                    // 实际情况：需要 main.js 支持。如果不支持，暂时报错
+                    // 为了让功能可用，我们直接调用一个假设存在的接口，后续补上，或者暂时禁用
+                     showToast('Electron版暂不支持按题库清空，请手动删除', 'warning');
                      return;
                 } else {
                     const response = await fetch(`${API_BASE}/api/wrongbook/bank/${encodeURIComponent(bankName)}`, {
@@ -2484,7 +2506,7 @@ function confirmClearWrongBank(bankName) {
                     showToast(data.error, 'error');
                 }
             } catch (error) {
-                showToast('????: ' + error.message, 'error');
+                showToast('清空失败: ' + error.message, 'error');
             }
         }
     );
@@ -2496,10 +2518,10 @@ function clearWrongQuestionsByBank() {
     }
 }
 
-// ????????
+// 添加错题到错题本
 async function addToWrongbook(question, userAnswer) {
     try {
-        // ????????????????????????
+        // 如果有反向映射，将用户的随机选项答案转回原始选项
         let originalUserAnswer = userAnswer;
         if (question.reverseAnswerMap) {
             originalUserAnswer = userAnswer.map(ans => question.reverseAnswerMap[ans] || ans);
@@ -2513,11 +2535,11 @@ async function addToWrongbook(question, userAnswer) {
             question: question
         });
     } catch (error) {
-        console.error('??????:', error);
+        console.error('添加错题失败:', error);
     }
 }
 
-// ==================== ?????? ====================
+// ==================== 进度保存功能 ====================
 async function loadProgressList() {
     try {
         const data = await window.storageService.getProgressList();
@@ -2528,16 +2550,16 @@ async function loadProgressList() {
         if (data.success && data.progress_list.length > 0) {
             container.innerHTML = data.progress_list.map(p => {
                 const modeNames = {
-                    'random': '????',
-                    'exam': '????',
-                    'sequence': '????',
-                    'wrong': '????'
+                    'random': '随机刷题',
+                    'exam': '模拟考试',
+                    'sequence': '顺序做题',
+                    'wrong': '错题练习'
                 };
                 return `
                     <div class="progress-item" onclick="loadProgress('${p.id}')">
                         <div>
-                            <div class="mode-name">${modeNames[p.mode] || '??'}</div>
-                            <div class="progress-info">${p.bank || '??'} | ${p.current_index + 1}/${p.total}?</div>
+                            <div class="mode-name">${modeNames[p.mode] || '刷题'}</div>
+                            <div class="progress-info">${p.bank || '全部'} | ${p.current_index + 1}/${p.total}题</div>
                         </div>
                         <div class="progress-actions">
                             <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteProgress('${p.id}')">
@@ -2548,24 +2570,24 @@ async function loadProgressList() {
                 `;
             }).join('');
         } else {
-            container.innerHTML = '<div class="empty-progress">???????</div>';
+            container.innerHTML = '<div class="empty-progress">暂无保存的进度</div>';
         }
     } catch (error) {
-        console.error('??????:', error);
+        console.error('加载进度失败:', error);
     }
 }
 
 async function saveCurrentProgress() {
     if (practiceQuestions.length === 0) {
-        showToast('??????????', 'warning');
+        showToast('当前没有进行中的练习', 'warning');
         return;
     }
     
-    // ????????????? + ????????
+    // 计算已用时间（当前会话时间 + 之前读档的时间）
     const currentSessionTime = Math.floor((new Date() - practiceStartTime) / 1000);
     const totalElapsedTime = loadedElapsedTime + currentSessionTime;
     
-    // ???????????????????
+    // 只保存乱序映射信息（大幅减少存储空间）
     // shuffleMap: { questionId: { shuffledOptions, shuffledAnswer, reverseAnswerMap } }
     const shuffleMap = {};
     practiceQuestions.forEach(q => {
@@ -2579,7 +2601,7 @@ async function saveCurrentProgress() {
     });
     
     const progressData = {
-        progress_id: currentProgressId, // ???ID??????????
+        progress_id: currentProgressId, // 如果有ID则覆盖，否则创建新的
         mode: currentPracticeMode,
         bank: lastPracticeSettings?.bank || '',
         chapter: lastPracticeSettings?.chapter || '',
@@ -2588,30 +2610,30 @@ async function saveCurrentProgress() {
         correct: correctCount,
         wrong: wrongCount,
         question_ids: practiceQuestions.map(q => q.id),
-        shuffle_map: shuffleMap,  // ???????????? questions?
+        shuffle_map: shuffleMap,  // 只保存乱序映射（替代完整 questions）
         question_results: questionResults,
         remaining_time: remainingTime,
-        elapsed_time: totalElapsedTime  // ??????
+        elapsed_time: totalElapsedTime  // 保存已用时间
     };
     
     try {
         const data = await window.storageService.saveProgress(progressData);
         
         if (data.success) {
-            // ??????ID
+            // 更新当前进度ID
             if (data.id) {
                 currentProgressId = data.id;
             } else if (data.progress && data.progress.id) {
                 // Compatible with backend API
                 currentProgressId = data.progress.id;
             }
-            showToast('?????', 'success');
+            showToast('进度已保存', 'success');
             loadProgressList();
         } else {
-            showToast('????', 'error');
+            showToast('保存失败', 'error');
         }
     } catch (error) {
-        showToast('????: ' + error.message, 'error');
+        showToast('保存失败: ' + error.message, 'error');
     }
 }
 
@@ -2622,17 +2644,17 @@ async function loadProgress(progressId) {
         if (data.success && data.progress) {
             const progress = data.progress;
             
-            // ? API ????
+            // 从 API 加载题目
             const questionIds = progress.question_ids || [];
             if (questionIds.length === 0) {
-                showToast('????????????', 'error');
+                showToast('存档数据损坏：无题目信息', 'error');
                 return;
             }
             
             const questionsData = await window.storageService.getQuestions();
             
             if (!questionsData.success || !questionsData.questions) {
-                showToast('??????', 'error');
+                showToast('加载题目失败', 'error');
                 return;
             }
             
@@ -2641,11 +2663,11 @@ async function loadProgress(progressId) {
             practiceQuestions = questionIds.map(id => questionMap[id]).filter(q => q);
             
             if (practiceQuestions.length === 0) {
-                showToast('??????????', 'error');
+                showToast('进度中的题目已被删除', 'error');
                 return;
             }
             
-            // ??????????????
+            // 应用保存的乱序映射（新格式）
             const shuffleMap = progress.shuffle_map || {};
             practiceQuestions = practiceQuestions.map(q => {
                 const shuffle = shuffleMap[q.id];
@@ -2657,7 +2679,7 @@ async function loadProgress(progressId) {
                         reverseAnswerMap: shuffle.reverseAnswerMap
                     };
                 }
-                // ??????? questions ????????
+                // 兼容旧格式：从 questions 数组获取乱序信息
                 if (progress.questions && Array.isArray(progress.questions)) {
                     const savedQ = progress.questions.find(sq => sq.id === q.id);
                     if (savedQ) {
@@ -2682,9 +2704,9 @@ async function loadProgress(progressId) {
             isExamMode = progress.mode === 'exam';
             remainingTime = progress.remaining_time || 0;
             practiceStartTime = new Date();
-            navCurrentPage = 1; // ???????
+            navCurrentPage = 1; // 重置答题卡页码
             
-            // ????ID???????????????????
+            // 恢复进度ID和已用时间（用于覆盖保存和计算总用时）
             currentProgressId = progressId;
             loadedElapsedTime = progress.elapsed_time || 0;
             
@@ -2694,34 +2716,34 @@ async function loadProgress(progressId) {
                 mode: progress.mode
             };
             
-            // ??????
+            // 显示练习界面
             document.getElementById('practice-settings').style.display = 'none';
             document.getElementById('practice-area').style.display = 'block';
             document.getElementById('practice-result').style.display = 'none';
             document.getElementById('practice-header-info').style.display = 'flex';
             
-            // ????????
+            // 显示并展开答题卡
             const navPanel = document.getElementById('question-nav-panel');
             navPanel.style.display = 'block';
             navPanel.classList.remove('collapsed');
             navPanel.classList.add('expanded');
             
-            // ????????????
+            // 进入刷题后折叠排行榜面板
             document.getElementById('ranking-panel-wrapper').classList.add('collapsed');
             
             const modeBadge = document.getElementById('practice-mode-badge');
             const modeTexts = {
-                'random': '????',
-                'exam': '????',
-                'sequence': '????',
-                'wrong': '????'
+                'random': '刷题模式',
+                'exam': '模拟考试',
+                'sequence': '顺序做题',
+                'wrong': '错题练习'
             };
-            modeBadge.textContent = modeTexts[currentPracticeMode] || '????';
+            modeBadge.textContent = modeTexts[currentPracticeMode] || '刷题模式';
             modeBadge.className = `practice-mode-badge ${currentPracticeMode}`;
             
             document.getElementById('score-info').style.display = isExamMode ? 'none' : 'flex';
             
-            // ????????????
+            // 设置计时器（先清除旧的）
             if (practiceTimer) {
                 clearInterval(practiceTimer);
                 practiceTimer = null;
@@ -2737,15 +2759,15 @@ async function loadProgress(progressId) {
             renderQuestionNav();
             renderQuestion();
             
-            showToast('?????', 'success');
+            showToast('进度已恢复', 'success');
             
-            // ??????????????
+            // 不删除进度，保留用于覆盖更新
             loadProgressList();
         } else {
-            showToast('??????', 'error');
+            showToast('加载进度失败', 'error');
         }
     } catch (error) {
-        showToast('??????: ' + error.message, 'error');
+        showToast('加载进度失败: ' + error.message, 'error');
     }
 }
 
@@ -2755,18 +2777,18 @@ async function deleteProgress(progressId, silent = false) {
         
         if (data.success) {
             if (!silent) {
-                showToast('?????', 'success');
+                showToast('进度已删除', 'success');
             }
             loadProgressList();
         }
     } catch (error) {
         if (!silent) {
-            showToast('????: ' + error.message, 'error');
+            showToast('删除失败: ' + error.message, 'error');
         }
     }
 }
 
-// ==================== ???? ====================
+// ==================== 动画系统 ====================
 function initAnimations() {
     initPageLoader();
     initParticles();
@@ -2774,7 +2796,7 @@ function initAnimations() {
     initMouseGlow();
     initButtonRipple();
     initNavScroll();
-    featureCarousel.init();
+    if (typeof featureCarousel !== 'undefined' && featureCarousel) featureCarousel.init();
 }
 
 function initPageLoader() {

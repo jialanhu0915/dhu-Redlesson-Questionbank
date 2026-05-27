@@ -51,12 +51,12 @@ body {
     font-family: var(--font-main);
     background-color: #f0f0f8;
     background-image:
-        url('../img/deco/bg_light.png'),
+        url('/img/deco/bg_light.png'),
         linear-gradient(45deg, rgba(0,192,195,0.24) 25%, transparent 25%, transparent 75%, rgba(0,192,195,0.24) 75%),
         linear-gradient(45deg, rgba(0,192,195,0.24) 25%, transparent 25%, transparent 75%, rgba(0,192,195,0.24) 75%),
         linear-gradient(rgba(255,99,93,0.18) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0,192,195,0.18) 1px, transparent 1px);
-    background-size: 72px 133px, 40px 40px, 40px 40px, 60px 60px, 60px 60px;
+    background-size: 77px 133px, 40px 40px, 40px 40px, 60px 60px, 60px 60px;
     background-position: center, 0 0, 20px 20px, 0 0, 0 0;
     background-attachment: fixed;
     color: var(--text-primary);
@@ -192,7 +192,7 @@ body {
 .hero-title::before {
     content: ''; position: absolute; top: -44px; left: 50%; transform: translateX(-50%);
     width: 40px; height: 40px;
-    background: url('../img/deco/title_sun-r.webp') no-repeat center center / contain;
+    background: url('/img/deco/title_sun-r.webp') no-repeat center center / contain;
     animation: sunRotate 20s linear infinite; opacity: 1;
 }
 .hero-subtitle {
@@ -292,6 +292,7 @@ body {
 .stat-icon-sm.accent { background: var(--gradient-orange); box-shadow: 0 2px 12px rgba(249,115,22,0.2); }
 .stat-icon-sm.green { background: var(--gradient-success); box-shadow: 0 2px 12px rgba(16,185,129,0.2); }
 .stat-icon-sm.orange { background: var(--gradient-pink); box-shadow: 0 2px 12px rgba(255,99,93,0.2); }
+.stat-icon-sm.purple { background: linear-gradient(135deg, #8b5cf6, #a78bfa); box-shadow: 0 2px 12px rgba(139,92,246,0.2); }
 .stat-num {
     font-family: var(--font-display);
     font-size: 28px; font-weight: 900;
@@ -799,6 +800,7 @@ select.form-control {
     background: var(--gradient-main); color: white; font-weight: 600;
 }
 .question-type.multi { background: linear-gradient(135deg, #f59e0b, #f97316); }
+.question-type.judge { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
 .question-id-badge {
     font-size: 11px; color: var(--text-muted);
     background: rgba(0,192,195,0.08);
@@ -1793,7 +1795,7 @@ select.form-control {
 .section-deco-title::before {
     content: ''; position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
     width: clamp(40px, 5vw, 60px); height: clamp(40px, 5vw, 60px);
-    background: url('../img/deco/title_sun-r.webp') no-repeat center center / contain;
+    background: url('/img/deco/title_sun-r.webp') no-repeat center center / contain;
     animation: sunRotate 20s linear infinite; opacity: 1;
 }
 .deco-title-line {
@@ -2123,7 +2125,7 @@ select.form-control {
 }
 .site-footer .footer-fence-wrap {
     width: 100%; height: 60px; background: transparent;
-    background-image: url('../img/deco/deco_fence.svg');
+    background-image: url('/img/deco/deco_fence.svg');
     background-repeat: repeat-x;
     background-size: auto 60px;
     background-position: center;
@@ -2233,7 +2235,7 @@ select.form-control {
 .gnav-menu-btn {
     position: fixed; top: 15px; right: 15px; z-index: 9999;
     width: 80px; height: 80px;
-    background: url('../img/deco/menu_bg.svg') no-repeat center center / contain;
+    background: url('/img/deco/menu_bg.svg') no-repeat center center / contain;
     cursor: pointer; display: none;
     border: none; padding: 0;
 }
@@ -2267,5 +2269,3 @@ select.form-control {
         padding: 12px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.1);
     }
 }
-
-

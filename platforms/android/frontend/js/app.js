@@ -32,27 +32,44 @@ let loadedElapsedTime = 0; // 读取存档时已经过的时间（秒）
 let navCurrentPage = 1; // 答题卡当前页码
 const NAV_PAGE_SIZE = 56; // 答题卡每页显示数量
 
+// ==================== 题型辅助函数 ====================
+function getTypeLabel(type) {
+    if (type === 'multi') return '多选题';
+    if (type === 'judge') return '判断题';
+    return '单选题';
+}
+function getTypeClass(type) {
+    if (type === 'multi') return 'multi';
+    if (type === 'judge') return 'judge';
+    return '';
+}
+function isMultiSelect(type) {
+    return type === 'multi';
+}
+
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', async function() {
     initNavigation();
-    initFeaturesCarousel();
     initUpload();
+    initFeaturesCarousel();
 
+    // Electron 环境特殊处理
     if (isElectron) {
         serverOnline = true;
         await loadStats();
-    } else if (window.storageService && window.storageService.isMobile) {
-        await loadPresetData();
     }
 
     await loadConfig();
 
+    // Electron 环境不需要健康检查
     if (!isElectron) {
         startHealthCheck();
     }
 
+    // 设置初始页面属性
     document.body.setAttribute('data-page', 'dashboard');
 
+    // 暴露函数到全局作用域（用于onclick调用）
     window.changeNavPage = changeNavPage;
     window.togglePanel = togglePanel;
 
@@ -239,65 +256,12 @@ async function loadStats() {
             document.getElementById('total-questions').textContent = stats.total_questions;
             document.getElementById('single-count').textContent = stats.single_choice_count;
             document.getElementById('multi-count').textContent = stats.multi_choice_count;
+            document.getElementById('judge-count').textContent = stats.judge_count || 0;
         }
     } catch (error) {
         console.error('加载统计数据失败:', error);
     }
     loadWrongBookOverview();
-}
-
-// 首次启动自动导入预置题库
-async function loadPresetData() {
-    try {
-        var banks = await window.storageService.getBanks();
-        if (banks.success && banks.banks && banks.banks.length > 0) {
-            console.log('已有题库数据，跳过预置导入');
-            await loadStats();
-            return;
-        }
-    } catch (e) {
-        console.warn('检查已有题库失败，尝试导入预置数据:', e);
-    }
-
-    try {
-        var resp = await fetch('data/preset.json');
-        if (!resp.ok) {
-            console.warn('预置题库文件不存在 (data/preset.json)');
-            return;
-        }
-        var preset = await resp.json();
-
-        var bankNames = Object.keys(preset);
-        console.log('开始导入预置题库:', bankNames.length, '个题库');
-
-        var totalImported = 0;
-        for (var i = 0; i < bankNames.length; i++) {
-            var bankName = bankNames[i];
-            var bankData = preset[bankName];
-            var questions = bankData.questions || bankData;
-
-            if (questions.length === 0) continue;
-
-            var result = await window.storageService.importQuestions(bankName, questions);
-            if (result.success) {
-                totalImported += result.count;
-                console.log('  导入:', bankName, '-', result.count, '题');
-            } else {
-                console.warn('  导入失败:', bankName, result.error);
-            }
-        }
-        console.log('预置题库导入完成，共', totalImported, '题');
-
-        if (totalImported > 0) {
-            if (typeof showToast === 'function') {
-                showToast('预置题库已加载: ' + totalImported + ' 道题', 'success');
-            }
-        }
-    } catch (e) {
-        console.error('预置题库导入失败:', e);
-    }
-
-    await loadStats();
 }
 
 async function loadWrongBookOverview() {
@@ -738,10 +702,10 @@ async function loadQuestions() {
                         </button>
                     </div>`;
                 return `
-                <div class="question-item ${q.type === 'multi' ? 'multi' : ''}">
+                <div class="question-item ${getTypeClass(q.type)}">
                     <div class="question-header">
-                        <span class="question-type ${q.type === 'multi' ? 'multi' : ''}">
-                            ${q.type === 'multi' ? '多选题' : '单选题'}
+                        <span class="question-type ${getTypeClass(q.type)}">
+                            ${getTypeLabel(q.type)}
                         </span>
                         <span class="question-id-badge" title="题目编号">#${q.id}</span>
                         <span class="question-chapter">${q.chapter}</span>
@@ -1002,9 +966,9 @@ async function updateAvailableStats() {
     const chapter = document.getElementById('practice-chapter')?.value || '';
     
     try {
-        // 获取题目统计
         let singleCount = 0;
         let multiCount = 0;
+        let judgeCount = 0;
         
         const data = await window.storageService.getQuestions({
             bank: bank,
@@ -1014,16 +978,19 @@ async function updateAvailableStats() {
         if (data.success && Array.isArray(data.questions)) {
             data.questions.forEach(q => {
                 if (q.type === 'single') singleCount++;
-                else multiCount++;
+                else if (q.type === 'multi') multiCount++;
+                else if (q.type === 'judge') judgeCount++;
             });
         } else {
             console.warn('updateAvailableStats: 题目数据异常', data);
             document.getElementById('available-single').textContent = 0;
             document.getElementById('available-multi').textContent = 0;
+            document.getElementById('available-judge').textContent = 0;
         }
         
         document.getElementById('available-single').textContent = singleCount;
         document.getElementById('available-multi').textContent = multiCount;
+        document.getElementById('available-judge').textContent = judgeCount;
     } catch (error) {
         console.error('更新统计失败:', error);
     }
@@ -1052,21 +1019,21 @@ async function startPractice(examMode = false) {
     const chapter = document.getElementById('practice-chapter')?.value || '';
     const singleCount = parseInt(document.getElementById('practice-single-count').value) || 0;
     const multiCount = parseInt(document.getElementById('practice-multi-count').value) || 0;
+    const judgeCount = parseInt(document.getElementById('practice-judge-count').value) || 0;
     const enableTimer = document.getElementById('enable-timer').checked;
     const timeMinutes = parseInt(document.getElementById('practice-time').value) || 35;
     const shuffleOptionsEnabled = document.getElementById('shuffle-options')?.checked || false;
     
-    if (singleCount === 0 && multiCount === 0) {
+    if (singleCount === 0 && multiCount === 0 && judgeCount === 0) {
         showToast('请至少设置一种题型的数量', 'warning');
         return;
     }
     
-    // 保存练习设置
-    lastPracticeSettings = { bank, chapter, singleCount, multiCount, enableTimer, timeMinutes, examMode, shuffleOptionsEnabled, mode: examMode ? 'exam' : 'random' };
+    lastPracticeSettings = { bank, chapter, singleCount, multiCount, judgeCount, enableTimer, timeMinutes, examMode, shuffleOptionsEnabled, mode: examMode ? 'exam' : 'random' };
     currentPracticeMode = examMode ? 'exam' : 'random';
     
     try {
-        const filters = { single_count: singleCount, multi_count: multiCount };
+        const filters = { single_count: singleCount, multi_count: multiCount, judge_count: judgeCount };
         if (bank) filters.bank = bank;
         if (chapter) filters.chapter = chapter;
         const data = await window.storageService.getPracticeRandom(filters);
@@ -1166,6 +1133,7 @@ function restartWithSameSettings() {
         }
         document.getElementById('practice-single-count').value = lastPracticeSettings.singleCount || 0;
         document.getElementById('practice-multi-count').value = lastPracticeSettings.multiCount || 0;
+        document.getElementById('practice-judge-count').value = lastPracticeSettings.judgeCount || 0;
         document.getElementById('enable-timer').checked = lastPracticeSettings.enableTimer;
         document.getElementById('practice-time').value = lastPracticeSettings.timeMinutes || 30;
         if (document.getElementById('shuffle-options')) {
@@ -1271,7 +1239,7 @@ function renderQuestionNav() {
             // 开始新分组
             currentSection = itemType;
             const totalCount = itemType === 'multi' ? multiQuestions.length : singleQuestions.length;
-            const title = itemType === 'multi' ? '多选题' : '单选题';
+            const title = getTypeLabel(itemType);
             html += `<div class="nav-section"><div class="nav-section-title ${itemType === 'multi' ? 'multi' : ''}">${title} (${totalCount}题)</div>`;
             html += '<div class="nav-section-grid">';
         }
@@ -1295,7 +1263,7 @@ function renderQuestionNav() {
             statusClass = 'selected';
         }
         const current = item.index === currentQuestionIndex ? 'current' : '';
-        const multiClass = item.question.type === 'multi' ? 'multi' : '';
+        const multiClass = getTypeClass(item.question.type);
         html += `<button class="nav-btn ${multiClass} ${statusClass} ${current}" onclick="goToQuestion(${item.index})">${item.index + 1}</button>`;
     });
     
@@ -1408,8 +1376,8 @@ function renderQuestion() {
     document.getElementById('wrong-num').textContent = wrongCount;
     
     // 渲染题目
-    document.getElementById('question-type').textContent = question.type === 'multi' ? '多选题' : '单选题';
-    document.getElementById('question-type').className = `question-type ${question.type === 'multi' ? 'multi' : ''}`;
+    document.getElementById('question-type').textContent = getTypeLabel(question.type);
+    document.getElementById('question-type').className = 'question-type ' + getTypeClass(question.type);
     document.getElementById('question-id').textContent = `#${question.id}`;
     document.getElementById('question-chapter').textContent = question.chapter;
     
@@ -1418,9 +1386,12 @@ function renderQuestion() {
     contentEl.textContent = question.question;
     applyAdaptiveTextSize(contentEl);
     
-    // 渲染选项
+    // 渲染选项 — 判断题生成对/错选项
     const optionsList = document.getElementById('options-list');
-    const optionEntries = question.shuffledOptions || Object.entries(question.options);
+    var optionEntries = question.shuffledOptions || Object.entries(question.options);
+    if (question.type === 'judge') {
+        optionEntries = [['对', '对'], ['错', '错']];
+    }
     
     // 模拟考试模式：允许随时修改答案，不锁定
     if (isExamMode) {
@@ -1429,7 +1400,7 @@ function renderQuestion() {
         
         optionsList.innerHTML = optionEntries.map(([key, value]) => {
             const isSelected = selectedAnswers.includes(key) ? 'selected' : '';
-            return `<button class="option-btn ${isSelected}" onclick="selectOption('${key}', ${question.type === 'multi'})" data-key="${key}">
+            return `<button class="option-btn ${isSelected}" onclick="selectOption('${key}', ${isMultiSelect(question.type)})" data-key="${key}">
                 <span class="option-key">${key}</span>
                 <span class="option-text">${value}</span>
             </button>`;
@@ -1473,7 +1444,7 @@ function renderQuestion() {
     } else {
         // 刷题模式未作答：正常渲染
         optionsList.innerHTML = optionEntries.map(([key, value]) => `
-            <button class="option-btn" onclick="selectOption('${key}', ${question.type === 'multi'})" data-key="${key}">
+            <button class="option-btn" onclick="selectOption('${key}', ${isMultiSelect(question.type)})" data-key="${key}">
                 <span class="option-key">${key}</span>
                 <span class="option-text">${value}</span>
             </button>
@@ -1495,11 +1466,6 @@ function renderQuestion() {
     
     // 更新导航面板
     renderQuestionNav();
-    
-    // 模拟考试模式：自动保存选择的答案（不判分）
-    if (isExamMode && selectedAnswers.length > 0) {
-        saveExamAnswer();
-    }
 }
 
 function selectOption(key, isMulti) {
@@ -1822,7 +1788,7 @@ function showResultQuestion(index) {
         btn.classList.toggle('current', i === index);
     });
     
-    const typeText = question.type === 'multi' ? '多选题' : '单选题';
+    const typeText = getTypeLabel(question.type);
     const statusClass = result.answered ? (result.isCorrect ? 'correct' : 'wrong') : 'wrong';
     const statusText = result.answered ? (result.isCorrect ? '✓ 正确' : '✗ 错误') : '✗ 未作答';
     
@@ -1855,7 +1821,7 @@ function showResultQuestion(index) {
     
     detailDiv.innerHTML = `
         <div class="result-question-header">
-            <span class="question-type ${question.type === 'multi' ? 'multi' : ''}">${typeText}</span>
+            <span class="question-type ${getTypeClass(question.type)}">${typeText}</span>
             <span class="result-question-status ${statusClass}">${statusText}</span>
             <span class="question-chapter">${question.chapter}</span>
         </div>
@@ -1874,9 +1840,13 @@ async function loadConfig() {
         const data = await window.storageService.getConfig();
 
         if (data.success) {
-            document.getElementById('data-path').value = data.config.data_path || '';
-            document.getElementById('current-data-file').textContent =
-                (data.config.data_path || '') + '/' + (data.config.questions_file || '');
+            var dataPathEl = document.getElementById('data-path');
+            if (dataPathEl) dataPathEl.value = data.config.data_path || '';
+            var currentDataFileEl = document.getElementById('current-data-file');
+            if (currentDataFileEl) {
+                currentDataFileEl.textContent =
+                    (data.config.data_path || '') + '/' + (data.config.questions_file || '');
+            }
         }
     } catch (error) {
         console.error('加载配置失败:', error);
@@ -2147,22 +2117,26 @@ async function updateWrongQuestionStats() {
         if (data.success) {
             let singleCount = 0;
             let multiCount = 0;
+            let judgeCount = 0;
             
             if (bank) {
                 const bankStats = data.stats[bank];
                 if (bankStats) {
                     singleCount = bankStats.single || 0;
                     multiCount = bankStats.multi || 0;
+                    judgeCount = bankStats.judge || 0;
                 }
             } else {
                 Object.values(data.stats).forEach(stat => {
                     singleCount += stat.single || 0;
                     multiCount += stat.multi || 0;
+                    judgeCount += stat.judge || 0;
                 });
             }
             
             document.getElementById('available-single').textContent = singleCount;
             document.getElementById('available-multi').textContent = multiCount;
+            document.getElementById('available-judge').textContent = judgeCount;
         }
     } catch (error) {
         console.error('更新错题统计失败:', error);
@@ -2434,10 +2408,10 @@ async function loadWrongQuestions(bankName) {
         const list = data.wrong_questions || data.questions;
         if (data.success && list && list.length > 0) {
             questionList.innerHTML = list.map((q, index) => `
-                <div class="question-item ${q.type === 'multi' ? 'multi' : ''}">
+                <div class="question-item ${getTypeClass(q.type)}">
                     <div class="question-header">
-                        <span class="question-type ${q.type === 'multi' ? 'multi' : ''}">
-                            ${q.type === 'multi' ? '多选题' : '单选题'}
+                        <span class="question-type ${getTypeClass(q.type)}">
+                            ${getTypeLabel(q.type)}
                         </span>
                         <span class="question-id-badge" title="题目编号">#${q.id}</span>
                         <span class="question-chapter">${q.chapter}</span>
