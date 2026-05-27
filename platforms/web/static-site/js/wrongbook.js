@@ -112,11 +112,13 @@ const Wrongbook = {
         for (const [bankName, questions] of Object.entries(data.banks)) {
             const singleCount = questions.filter(q => q.type === 'single').length;
             const multiCount = questions.filter(q => q.type === 'multi').length;
+            const judgeCount = questions.filter(q => q.type === 'judge').length;
             
             stats[bankName] = {
                 total: questions.length,
                 single: singleCount,
-                multi: multiCount
+                multi: multiCount,
+                judge: judgeCount
             };
         }
         

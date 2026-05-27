@@ -18,9 +18,9 @@
         async getStats() {
             await this.ensureLoaded();
             const bankList = Questions.getBankList();
-            let totalSingle = 0, totalMulti = 0;
-            bankList.forEach(b => { totalSingle += b.singleCount || 0; totalMulti += b.multiCount || 0; });
-            return { success: true, stats: { total_banks: bankList.length, total_questions: Questions.getTotalCount(), single_choice_count: totalSingle, multi_choice_count: totalMulti } };
+            let totalSingle = 0, totalMulti = 0, totalJudge = 0;
+            bankList.forEach(b => { totalSingle += b.singleCount || 0; totalMulti += b.multiCount || 0; totalJudge += b.judgeCount || 0; });
+            return { success: true, stats: { total_banks: bankList.length, total_questions: Questions.getTotalCount(), single_choice_count: totalSingle, multi_choice_count: totalMulti, judge_count: totalJudge } };
         },
         async getStatsByBank() {
             await this.ensureLoaded();
@@ -30,14 +30,14 @@
                 const questions = Questions.getByBank(b.name);
                 const chapters = {};
                 questions.forEach(q => { const ch = q.chapter || '未分类'; chapters[ch] = (chapters[ch] || 0) + 1; });
-                stats[b.name] = { total: b.totalQuestions, single: b.singleCount, multi: b.multiCount, chapters };
+                stats[b.name] = { total: b.totalQuestions, single: b.singleCount, multi: b.multiCount, judge: b.judgeCount, chapters };
             });
             return { success: true, stats };
         },
         async getBanks() {
             await this.ensureLoaded();
             const bankList = Questions.getBankList();
-            return { success: true, banks: bankList.map(b => ({ name: b.name, question_count: b.totalQuestions, total_questions: b.totalQuestions, single_count: b.singleCount, multi_count: b.multiCount, chapters: b.chapters, semester: b.semester, source_file: b.source_file || '静态数据', import_time: b.import_time || '预置' })) };
+            return { success: true, banks: bankList.map(b => ({ name: b.name, question_count: b.totalQuestions, total_questions: b.totalQuestions, single_count: b.singleCount, multi_count: b.multiCount, judge_count: b.judgeCount, chapters: b.chapters, semester: b.semester, source_file: b.source_file || '静态数据', import_time: b.import_time || '预置' })) };
         },
         async getChapters(bankName) {
             await this.ensureLoaded();
@@ -56,13 +56,15 @@
             const bankName = filters.bank;
             const singleCount = parseInt(filters.single_count || '0');
             const multiCount = parseInt(filters.multi_count || '0');
+            const judgeCount = parseInt(filters.judge_count || '0');
             const chapter = filters.chapter;
             let allQuestions = bankName ? Questions.getByBank(bankName) : Questions.getAllQuestions();
             let filtered = allQuestions;
             if (chapter && chapter !== 'all' && chapter !== '') filtered = allQuestions.filter(q => q.chapter === chapter);
             const singles = [...filtered.filter(q => q.type === 'single')].sort(() => Math.random() - 0.5).slice(0, singleCount);
             const multis = [...filtered.filter(q => q.type === 'multi')].sort(() => Math.random() - 0.5).slice(0, multiCount);
-            return { success: true, questions: [...singles, ...multis] };
+            const judges = [...filtered.filter(q => q.type === 'judge')].sort(() => Math.random() - 0.5).slice(0, judgeCount);
+            return { success: true, questions: [...singles, ...multis, ...judges] };
         },
         async getPracticeSequence(filters) {
             await this.ensureLoaded();
@@ -73,8 +75,9 @@
             if (chapter && chapter !== 'all' && chapter !== '') allQuestions = allQuestions.filter(q => q.chapter === chapter);
             let singles = allQuestions.filter(q => q.type === 'single');
             let multis = allQuestions.filter(q => q.type === 'multi');
-            if (shuffle) { singles = [...singles].sort(() => Math.random() - 0.5); multis = [...multis].sort(() => Math.random() - 0.5); }
-            return { success: true, questions: [...singles, ...multis], total: singles.length + multis.length };
+            let judges = allQuestions.filter(q => q.type === 'judge');
+            if (shuffle) { singles = [...singles].sort(() => Math.random() - 0.5); multis = [...multis].sort(() => Math.random() - 0.5); judges = [...judges].sort(() => Math.random() - 0.5); }
+            return { success: true, questions: [...singles, ...multis, ...judges], total: singles.length + multis.length + judges.length };
         },
         async getPracticeWrong(filters) {
             const bankName = filters.bank;
@@ -213,6 +216,7 @@
                         total_questions: b.totalQuestions,
                         single_count: b.singleCount,
                         multi_count: b.multiCount,
+                        judge_count: b.judgeCount,
                         chapters: b.chapters,
                         semester: b.semester,
                         source_file: b.source_file || '静态数据',
@@ -234,6 +238,7 @@
                             total_questions: bank.totalQuestions,
                             single_count: bank.singleCount,
                             multi_count: bank.multiCount,
+                            judge_count: bank.judgeCount,
                             chapters: bank.chapters,
                             semester: bank.semester
                         }
@@ -271,26 +276,26 @@
                 const bankName = urlParams.get('bank');
                 const singleCount = parseInt(urlParams.get('single_count') || '0');
                 const multiCount = parseInt(urlParams.get('multi_count') || '0');
+                const judgeCount = parseInt(urlParams.get('judge_count') || '0');
                 const chapter = urlParams.get('chapter');
                 
                 let questions = [];
                 const allQuestions = bankName ? Questions.getByBank(bankName) : Questions.getAllQuestions();
                 
-                // 筛选章节
                 let filtered = allQuestions;
                 if (chapter && chapter !== 'all' && chapter !== '') {
                     filtered = allQuestions.filter(q => q.chapter === chapter);
                 }
                 
-                // 分离单选和多选
                 const singles = filtered.filter(q => q.type === 'single');
                 const multis = filtered.filter(q => q.type === 'multi');
+                const judges = filtered.filter(q => q.type === 'judge');
                 
-                // 随机打乱并取指定数量
                 const shuffledSingles = [...singles].sort(() => Math.random() - 0.5).slice(0, singleCount);
                 const shuffledMultis = [...multis].sort(() => Math.random() - 0.5).slice(0, multiCount);
+                const shuffledJudges = [...judges].sort(() => Math.random() - 0.5).slice(0, judgeCount);
                 
-                questions = [...shuffledSingles, ...shuffledMultis];
+                questions = [...shuffledSingles, ...shuffledMultis, ...shuffledJudges];
                 
                 result = { 
                     success: true,
@@ -315,17 +320,18 @@
                 // 分离单选和多选
                 let singles = allQuestions.filter(q => q.type === 'single');
                 let multis = allQuestions.filter(q => q.type === 'multi');
+                let judges = allQuestions.filter(q => q.type === 'judge');
                 
-                // 如果需要打乱顺序
                 if (shuffle) {
                     singles = [...singles].sort(() => Math.random() - 0.5);
                     multis = [...multis].sort(() => Math.random() - 0.5);
+                    judges = [...judges].sort(() => Math.random() - 0.5);
                 }
                 
                 result = { 
                     success: true,
-                    questions: [...singles, ...multis],
-                    total: singles.length + multis.length
+                    questions: [...singles, ...multis, ...judges],
+                    total: singles.length + multis.length + judges.length
                 };
             }
             
@@ -416,9 +422,11 @@
                 const bankList = Questions.getBankList();
                 let totalSingle = 0;
                 let totalMulti = 0;
+                let totalJudge = 0;
                 bankList.forEach(b => {
                     totalSingle += b.singleCount || 0;
                     totalMulti += b.multiCount || 0;
+                    totalJudge += b.judgeCount || 0;
                 });
                 result = {
                     success: true,
@@ -426,7 +434,8 @@
                         total_banks: bankList.length,
                         total_questions: Questions.getTotalCount(),
                         single_choice_count: totalSingle,
-                        multi_choice_count: totalMulti
+                        multi_choice_count: totalMulti,
+                        judge_count: totalJudge
                     }
                 };
             }
@@ -446,6 +455,7 @@
                         total: b.totalQuestions,
                         single: b.singleCount,
                         multi: b.multiCount,
+                        judge: b.judgeCount,
                         chapters: chapters
                     };
                 });

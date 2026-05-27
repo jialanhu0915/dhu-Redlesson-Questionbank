@@ -74,6 +74,7 @@ const Questions = {
             totalQuestions: data.questions ? data.questions.length : 0,
             singleCount: data.questions ? data.questions.filter(q => q.type === 'single').length : 0,
             multiCount: data.questions ? data.questions.filter(q => q.type === 'multi').length : 0,
+            judgeCount: data.questions ? data.questions.filter(q => q.type === 'judge').length : 0,
             chapters: data.chapters || [],
             semester: data.semester || '',
             source_file: data.source_file || '',
@@ -174,6 +175,7 @@ const Questions = {
             total: questions.length,
             single: questions.filter(q => q.type === 'single').length,
             multi: questions.filter(q => q.type === 'multi').length,
+            judge: questions.filter(q => q.type === 'judge').length,
             chapters: chapters
         };
     },

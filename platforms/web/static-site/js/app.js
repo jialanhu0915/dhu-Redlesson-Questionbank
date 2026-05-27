@@ -59,10 +59,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         await loadStats();
     }
 
+    if (window.STATIC_MODE) {
+        serverOnline = true;
+        await loadStats();
+        await loadBankChapters();
+    }
+
     await loadConfig();
 
-    // Electron 环境不需要健康检查
-    if (!isElectron) {
+    if (!isElectron && !window.STATIC_MODE) {
         startHealthCheck();
     }
 
