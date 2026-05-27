@@ -41,6 +41,14 @@ def main():
             if chapter and chapter not in banks[bank_name]['chapters']:
                 banks[bank_name]['chapters'].append(chapter)
     
+    # 更新统计
+    for bank_name, bank_data in banks.items():
+        questions_list = bank_data.get('questions', [])
+        bank_data['singleCount'] = len([q for q in questions_list if q.get('type') == 'single'])
+        bank_data['multiCount'] = len([q for q in questions_list if q.get('type') == 'multi'])
+        bank_data['judgeCount'] = len([q for q in questions_list if q.get('type') == 'judge'])
+        bank_data['totalQuestions'] = len(questions_list)
+    
     # 构建最终数据
     data = {'banks': banks}
     
@@ -51,8 +59,9 @@ def main():
         questions_list = bank_data.get('questions', [])
         single_count = len([q for q in questions_list if q.get('type') == 'single'])
         multi_count = len([q for q in questions_list if q.get('type') == 'multi'])
+        judge_count = len([q for q in questions_list if q.get('type') == 'judge'])
         chapters = bank_data.get('chapters', [])
-        print(f'  - {bank_name}: {len(questions_list)}题 (单选{single_count}, 多选{multi_count}, {len(chapters)}章节)')
+        print(f'  - {bank_name}: {len(questions_list)}题 (单选{single_count}, 多选{multi_count}, 判断{judge_count}, {len(chapters)}章节)')
         total_questions += len(questions_list)
     
     print(f'总题目数: {total_questions}')
