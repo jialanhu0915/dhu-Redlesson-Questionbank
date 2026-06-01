@@ -308,10 +308,25 @@ class QuestionParser:
                 with open(file_path, 'r', encoding=encoding) as f:
                     text = f.read()
                 lines = [line.strip() for line in text.split('\n') if line.strip()]
+                # 预处理：拆分选项行中嵌入的下一题
+                lines = self._split_embedded_questions(lines)
                 return lines
             except (UnicodeDecodeError, UnicodeError):
                 continue
         raise Exception("无法识别TXT文件编码")
+
+    def _split_embedded_questions(self, lines):
+        """拆分选项中嵌入了下一道题的行"""
+        fixed = []
+        for line in lines:
+            # 检测行尾是否嵌入了题目（编号+答案标记），且行首包含选项字母
+            m = re.search(r'\s+(\d{2,4})[、．\.]\s*.*?[（(]\s*[A-Za-z]+\s*[）)]\s*$', line)
+            if m and re.search(r'^[A-Fa-f][.．、]', line):
+                fixed.append(line[:m.start()].strip())
+                fixed.append(line[m.start():].lstrip())
+            else:
+                fixed.append(line)
+        return fixed
     
     def detect_question_type_line(self, text):
         """检测是否是题型标识行"""
@@ -392,7 +407,7 @@ class QuestionParser:
         """判断是否是选项行（不含答案标记）"""
         text = text.strip()
         # 以选项字母开头（支持全角和半角），且不包含答案标记
-        if re.match(self.option_start_pattern, text):
+        if re.match(self.option_start_pattern, text) or re.match(r'^([A-Za-z])[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]', text):
             # 确保这不是一个题目行（题目行会包含答案标记）
             if not self.has_answer_marker(text):
                 # 检查选项内容是否有效（过滤如 "B. )" 这样的无效行）
@@ -478,8 +493,8 @@ class QuestionParser:
                             i = content_start
                             continue
                     
-                    # 情况3: 后面直接跟中文字符（如 "A高质量"、"D马克思"）
-                    elif '\u4e00' <= next_char <= '\u9fff':
+                    # 情况3: 后面直接跟中文字符或中文标点（如 "A高质量"、"D马克思"、"D《中法"）
+                    elif '\u4e00' <= next_char <= '\u9fff' or '\u3000' <= next_char <= '\u303f' or '\uff00' <= next_char <= '\uffef':
                         # 额外检查：前面应该是行首、空格、或其他选项的结尾（中文/标点）
                         # 避免把 "ABCD" 这种答案字符串误识别
                         if i == 0 or text[i-1] in ' \t　.、．。）)':
@@ -516,6 +531,7 @@ class QuestionParser:
         
         # 如果上面的方法找到了至少2个选项，直接返回
         if len(options) >= 2:
+            self._clean_options_embedded_questions(options)
             return options
         
         # 备用方法: 使用正则匹配标准格式
@@ -537,8 +553,22 @@ class QuestionParser:
                 if value and not self.is_invalid_option_content(value):
                     options[key] = value
         
+        self._clean_options_embedded_questions(options)
         return options
     
+    def _clean_options_embedded_questions(self, options):
+        """清理选项值中嵌入的后续题目文本"""
+        if not options:
+            return
+        for key, value in list(options.items()):
+            if not value:
+                continue
+            # 检测选项值末尾是否嵌入了下一道题的编号+答案
+            # 如 "D. xxx 240、1945年学生发动...（ D ）"
+            m = re.search(r'\s*(\d{2,4})[、．\.]\s*[^\d].*?[（(]\s*[A-Za-z]+\s*[）)]\s*$', value)
+            if m:
+                options[key] = value[:m.start()].rstrip()
+
     def is_invalid_option_content(self, content):
         """检查选项内容是否无效（如纯括号、空白等）"""
         if not content:
