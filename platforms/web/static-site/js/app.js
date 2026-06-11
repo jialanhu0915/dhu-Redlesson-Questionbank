@@ -2420,19 +2420,20 @@ async function loadWrongQuestions(bankName) {
                         </span>
                         <span class="question-id-badge" title="题目编号">#${q.id}</span>
                         <span class="question-chapter">${q.chapter}</span>
-                        <span class="wrong-count-badge" style="margin-left: auto;">错${q.wrong_count || 1}次</span>
+                        <span class="wrong-count-badge" style="margin-left: auto;">错${q.wrongCount || q.wrong_count || 1}次</span>
                     </div>
                     <div class="question-content">${index + 1}. ${q.question}</div>
                     <div class="question-options">
                         ${Object.entries(q.options || {}).map(([key, value]) => {
                             const isCorrect = q.answer.includes(key) ? 'correct-answer' : '';
-                            const isWrong = (q.last_wrong_answer || []).includes(key) && !q.answer.includes(key) ? 'wrong-answer' : '';
+                            const userWrong = (q.userAnswer || q.last_wrong_answer || []);
+                            const isWrong = userWrong.includes(key) && !q.answer.includes(key) ? 'wrong-answer' : '';
                             return `<div class="option-item ${isCorrect} ${isWrong}">${key}. ${value}</div>`;
                         }).join('')}
                     </div>
                     <div class="question-answer">
                         <i class="fas fa-check-circle"></i> 正确答案: ${q.answer.join('')}
-                        ${q.last_wrong_answer ? `<span style="margin-left:15px; color:var(--danger-color);"><i class="fas fa-times-circle"></i> 上次答案: ${q.last_wrong_answer.join('')}</span>` : ''}
+                        ${(q.userAnswer || q.last_wrong_answer) ? `<span style="margin-left:15px; color:var(--danger-color);"><i class="fas fa-times-circle"></i> 上次答案: ${(q.userAnswer || q.last_wrong_answer).join('')}</span>` : ''}
                     </div>
                     <div class="question-actions">
                         <button class="btn btn-success btn-small" onclick="removeFromWrongbook('${q.id}')">

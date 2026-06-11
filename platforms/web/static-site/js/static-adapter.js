@@ -372,13 +372,28 @@
                 result = { success: true, stats: Wrongbook.getStats() };
             }
             else if (apiPath === '/api/wrongbook' && method === 'POST') {
-                Wrongbook.add(body.question, body.userAnswer);
+                Wrongbook.add(body.question, body.userAnswer || body.user_answer);
+                result = { success: true };
+            }
+            else if (apiPath.match(/^\/api\/wrongbook\/bank\/[^\/]+$/) && method === 'DELETE') {
+                const bankName = decodeURIComponent(apiPath.replace('/api/wrongbook/bank/', ''));
+                Wrongbook.clearBank(bankName);
                 result = { success: true };
             }
             else if (apiPath.match(/^\/api\/wrongbook\/[^\/]+$/) && method === 'DELETE') {
-                const bankName = decodeURIComponent(apiPath.split('/').pop());
-                Wrongbook.clearBank(bankName);
-                result = { success: true };
+                const questionId = apiPath.split('/').pop();
+                // 遍历所有 bank 找到并删除该错题
+                const data = Wrongbook.getAll();
+                let found = false;
+                for (const [bn, questions] of Object.entries(data.banks || {})) {
+                    const q = questions.find(q => q.id === questionId);
+                    if (q) {
+                        Wrongbook.remove(bn, questionId);
+                        found = true;
+                        break;
+                    }
+                }
+                result = { success: found };
             }
             
             // 排行榜相关
