@@ -495,22 +495,17 @@ class QuestionParser:
                     
                     # 情况3: 后面直接跟中文字符或中文标点（如 "A高质量"、"D马克思"、"D《中法"）
                     elif '\u4e00' <= next_char <= '\u9fff' or '\u3000' <= next_char <= '\u303f' or '\uff00' <= next_char <= '\uffef':
-                        # 额外检查：前面应该是行首、空格、或其他选项的结尾（中文/标点）
-                        # 避免把 "ABCD" 这种答案字符串误识别
+                        # 仅当字母位于行首或紧接分隔符（空格/标点）时才视为选项开头
+                        # 避免 "适用A国"、"B超" 等内容中的字母被误识别为选项
                         if i == 0 or text[i-1] in ' \t　.、．。）)':
-                            option_positions.append((i, normalized, i + 1))
-                            i += 1
-                            continue
-                        # 前面是中文也可以（如 "高速度C高水平"）
-                        elif '\u4e00' <= text[i-1] <= '\u9fff':
                             option_positions.append((i, normalized, i + 1))
                             i += 1
                             continue
                     
                     # 情况4: 后面直接跟数字（如 "D15"、"C12"）
                     elif next_char.isdigit():
-                        # 前面应该是空格、中文或标点
-                        if i == 0 or text[i-1] in ' \t　.、．。）)' or ('\u4e00' <= text[i-1] <= '\u9fff'):
+                        # 仅当字母位于行首或紧接分隔符时才视为选项开头
+                        if i == 0 or text[i-1] in ' \t　.、．。）)':
                             option_positions.append((i, normalized, i + 1))
                             i += 1
                             continue
