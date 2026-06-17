@@ -763,6 +763,21 @@ class QuestionParser:
                     if re.match(self.question_number_pattern, next_line) and not self.is_option_line(next_line):
                         break
                     
+                    # 检查判断题独立答案行（优先于通用答案标记，避免 "（对）"、"（错）" 被误吞）
+                    if current_type == 'judge':
+                        judge_ans = self.extract_judge_answer(next_line)
+                        if judge_ans:
+                            answer_found = [judge_ans]
+                            has_standalone_answer = True
+                            # 如果答案行前面还有题干文字（如 "等思想观点（错）"），追加到题目行
+                            ans_pos = next_line.find('（') if '（' in next_line else next_line.find('(')
+                            if ans_pos > 0:
+                                prefix = next_line[:ans_pos].strip()
+                                if prefix and not re.match(r'^\s*(\d+)[、．.\s]', prefix):
+                                    question_lines.append(prefix)
+                            j += 1
+                            break
+                    
                     # 检查这行是否包含括号答案（且不是选项行）
                     if self.has_answer_marker(next_line) and not self.is_option_line(next_line):
                         # 这是题目的延续行，包含答案
@@ -783,15 +798,6 @@ class QuestionParser:
                                 if normalized and normalized not in answer_found:
                                     answer_found.append(normalized)
                         break
-                    
-                    # 检查判断题独立答案行
-                    if current_type == 'judge':
-                        judge_ans = self.extract_judge_answer(next_line)
-                        if judge_ans:
-                            answer_found = [judge_ans]
-                            has_standalone_answer = True
-                            j += 1
-                            break
                     
                     # 检查选项行
                     if self.is_option_line(next_line):
@@ -845,6 +851,15 @@ class QuestionParser:
                 
                 if is_judge:
                     answer = [self.extract_judge_answer(line)]
+                    # 如果该行纯粹是一个判断题答案标签（只有编号+答案，如"（对）""（错）"），
+                    # 且上一题还没有设置答案，则将答案补到上一题，不创建新题目
+                    is_pure_answer_line = re.match(r'^\s*[（(]\s*(对|错|正确|错误|√|×|T|F|true|false)\s*[）)]\s*$', line)
+                    if is_pure_answer_line and current_question and not current_question.get('answer'):
+                        current_question['answer'] = answer
+                        current_question['type'] = current_question.get('type') or 'judge'
+                        i += 1
+                        continue
+                    
                     question_text = self.clean_judge_text(line)
                     current_question = {
                         'chapter': current_chapter,
